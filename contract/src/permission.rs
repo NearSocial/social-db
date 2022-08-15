@@ -2,13 +2,15 @@ use crate::*;
 use near_sdk::{require, PublicKey};
 use std::collections::HashSet;
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
 pub enum PermissionKey {
     AccountId(AccountId),
     SignerPublicKey(PublicKey),
 }
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
 pub enum Permission {
     Granted(HashSet<NodeId>),
 }
@@ -61,6 +63,10 @@ impl Contract {
                         match node_value {
                             None => {
                                 let node_id = self.create_node_id();
+                                node.as_mut()
+                                    .unwrap()
+                                    .children
+                                    .insert(&key.to_string(), &NodeValue::Node(node_id));
                                 self.internal_set_node(
                                     node.replace(Node::new(node_id, None)).unwrap(),
                                 );
@@ -76,6 +82,10 @@ impl Contract {
                                     "The empty key's value should be a string"
                                 );
                                 let node_id = self.create_node_id();
+                                node.as_mut()
+                                    .unwrap()
+                                    .children
+                                    .insert(&key.to_string(), &NodeValue::Node(node_id));
                                 self.internal_set_node(
                                     node.replace(Node::new(node_id, Some(value_at_height)))
                                         .unwrap(),
@@ -92,6 +102,11 @@ impl Contract {
         };
         account.internal_set_permission(&permission_key, permission);
         self.internal_set_account(account);
+    }
+
+    pub fn debug_get_permissions(&self, account_id: AccountId) -> Vec<(PermissionKey, Permission)> {
+        let account = self.internal_unwrap_account(account_id.as_str());
+        account.permissions.to_vec()
     }
 }
 

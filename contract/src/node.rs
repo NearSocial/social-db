@@ -4,23 +4,42 @@ use near_sdk::{require, BlockHeight};
 pub const EMPTY_KEY: &str = "";
 pub const ERR_PERMISSION_DENIED: &str = "Permission Denied";
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
 pub struct ValueAtHeight {
     pub value: String,
     pub block_height: BlockHeight,
 }
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
 pub enum NodeValue {
     Value(ValueAtHeight),
     Node(NodeId),
 }
 
-#[derive(BorshSerialize, BorshDeserialize)]
+mod unordered_map_expensive {
+    use super::*;
+    use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
+    use near_sdk::serde::Serializer;
+
+    pub fn serialize<S, K, V>(map: &UnorderedMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        K: Serialize + BorshDeserialize + BorshSerialize,
+        V: Serialize + BorshDeserialize + BorshSerialize,
+    {
+        serializer.collect_seq(map.iter())
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
 pub struct Node {
     #[borsh_skip]
     pub node_id: NodeId,
     pub block_height: BlockHeight,
+    #[serde(with = "unordered_map_expensive")]
     pub children: UnorderedMap<String, NodeValue>,
 }
 
@@ -88,5 +107,17 @@ impl Contract {
         let node_id = node.node_id;
         node.block_height = env::block_height();
         self.nodes.insert(&node_id, &node.into());
+    }
+}
+
+#[near_bindgen]
+impl Contract {
+    pub fn debug_nodes(self) -> Vec<Option<Node>> {
+        let mut nodes = vec![None];
+        for node_id in 1..self.node_count {
+            nodes.push(self.internal_get_node(node_id));
+        }
+        nodes[0].replace(self.root_node);
+        nodes
     }
 }

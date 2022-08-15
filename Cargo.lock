@@ -458,13 +458,11 @@ checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
 name = "contract"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "near-contract-standards",
  "near-sdk",
  "near-sys",
- "once_cell",
- "rand 0.8.5",
 ]
 
 [[package]]
@@ -2754,7 +2752,7 @@ dependencies = [
 
 [[package]]
 name = "social-db"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "contract",
  "near-contract-standards",

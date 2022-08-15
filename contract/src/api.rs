@@ -146,6 +146,7 @@ impl Contract {
                             node.set(key, s);
                         } else {
                             let node_id = self.create_node_id();
+                            node.children.insert(key, &NodeValue::Node(node_id));
                             self.recursive_set(
                                 Node::new(node_id, None),
                                 value,
@@ -173,6 +174,7 @@ impl Contract {
                                 "The empty key's value should be a string"
                             );
                             let node_id = self.create_node_id();
+                            node.children.insert(key, &NodeValue::Node(node_id));
                             self.recursive_set(
                                 Node::new(node_id, Some(value_at_height)),
                                 value,
