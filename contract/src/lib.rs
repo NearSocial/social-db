@@ -1,11 +1,13 @@
 mod account;
 mod api;
 mod node;
+mod permission;
 mod storage_tracker;
 
 pub use crate::account::*;
 pub use crate::api::*;
 pub use crate::node::*;
+pub use crate::permission::*;
 use crate::storage_tracker::*;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
@@ -22,6 +24,7 @@ enum StorageKey {
     Account,
     Nodes,
     Node { node_id: NodeId },
+    Permissions { node_id: NodeId },
 }
 
 pub type NodeId = u32;

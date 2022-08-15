@@ -1,7 +1,8 @@
 use crate::*;
-use near_sdk::BlockHeight;
+use near_sdk::{require, BlockHeight};
 
 pub const EMPTY_KEY: &str = "";
+pub const ERR_PERMISSION_DENIED: &str = "Permission Denied";
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct ValueAtHeight {
@@ -63,7 +64,7 @@ impl Node {
                 block_height: env::block_height(),
             }),
         );
-        assert!(
+        require!(
             !matches!(prev_value, Some(NodeValue::Node(_))),
             "Internal error, the replaced value was a node"
         );

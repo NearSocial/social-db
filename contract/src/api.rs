@@ -1,7 +1,8 @@
 use crate::*;
-use near_sdk::log;
 use near_sdk::serde_json::map::Entry;
 use near_sdk::serde_json::{Map, Value};
+use near_sdk::{log, require};
+use std::collections::HashSet;
 
 pub const SEPARATOR: char = '/';
 
@@ -49,16 +50,24 @@ impl Contract {
     ///   }
     /// })
     /// ```
+    #[payable]
     pub fn set(&mut self, mut data: Value) {
         let account_id = env::predecessor_account_id();
+        let mut attached_balance = env::attached_deposit();
         for (key, value) in data.as_object_mut().expect("Data is not a JSON object") {
-            // Temporary assert to check permission by ownership
-            assert_eq!(key.as_str(), account_id.as_str(), "Permission denied");
             let mut account = self.internal_unwrap_account(&key);
+            account.storage_balance += attached_balance;
+            attached_balance = 0;
+            let write_approved = key == account_id.as_str() && env::attached_deposit() > 0;
+            let writable_node_ids = if write_approved {
+                HashSet::new()
+            } else {
+                account.internal_get_writeable_node_ids()
+            };
             log!("account's node_id: {}", account.node_id);
             let node = self.internal_unwrap_node(account.node_id);
             account.storage_tracker.start();
-            self.recursive_set(node, value);
+            self.recursive_set(node, value, write_approved, &writable_node_ids);
             account.storage_tracker.stop();
             self.internal_set_account(account);
         }
@@ -110,13 +119,21 @@ impl Contract {
         }
     }
 
-    pub fn recursive_set(&mut self, mut node: Node, value: &mut Value) {
+    pub fn recursive_set(
+        &mut self,
+        mut node: Node,
+        value: &mut Value,
+        write_approved: bool,
+        writable_node_ids: &HashSet<NodeId>,
+    ) {
         log!(
             "node_id: {}, value: {}",
             node.node_id,
             near_sdk::serde_json::to_string(&value).unwrap()
         );
+        let write_approved = write_approved || writable_node_ids.contains(&node.node_id);
         if let Some(s) = value.as_str() {
+            require!(write_approved, ERR_PERMISSION_DENIED);
             node.set(&EMPTY_KEY.to_string(), s);
         } else if let Some(obj) = value.as_object_mut() {
             for (key, value) in obj {
@@ -124,17 +141,29 @@ impl Contract {
                 let node_value = node.children.get(key);
                 match node_value {
                     None => {
+                        require!(write_approved, ERR_PERMISSION_DENIED);
                         if let Some(s) = value.as_str() {
                             node.set(key, s);
                         } else {
                             let node_id = self.create_node_id();
-                            self.recursive_set(Node::new(node_id, None), value);
+                            self.recursive_set(
+                                Node::new(node_id, None),
+                                value,
+                                write_approved,
+                                writable_node_ids,
+                            );
                         }
                     }
                     Some(NodeValue::Node(node_id)) => {
-                        self.recursive_set(self.internal_unwrap_node(node_id), value);
+                        self.recursive_set(
+                            self.internal_unwrap_node(node_id),
+                            value,
+                            write_approved,
+                            writable_node_ids,
+                        );
                     }
                     Some(NodeValue::Value(value_at_height)) => {
+                        require!(write_approved, ERR_PERMISSION_DENIED);
                         if let Some(s) = value.as_str() {
                             node.set(key, s);
                         } else {
@@ -144,7 +173,12 @@ impl Contract {
                                 "The empty key's value should be a string"
                             );
                             let node_id = self.create_node_id();
-                            self.recursive_set(Node::new(node_id, Some(value_at_height)), value);
+                            self.recursive_set(
+                                Node::new(node_id, Some(value_at_height)),
+                                value,
+                                write_approved,
+                                writable_node_ids,
+                            );
                         }
                     }
                 }
@@ -194,7 +228,7 @@ fn json_map_set_key(res: &mut Map<String, Value>, key: String, value: String) {
     };
 }
 
-fn is_key_valid(key: &str) -> bool {
+pub(crate) fn is_key_valid(key: &str) -> bool {
     for &c in key.as_bytes() {
         match c {
             b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' => {}
@@ -205,6 +239,6 @@ fn is_key_valid(key: &str) -> bool {
     true
 }
 
-fn assert_key_valid(key: &str) {
+pub(crate) fn assert_key_valid(key: &str) {
     assert!(is_key_valid(key), "Key contains invalid character");
 }

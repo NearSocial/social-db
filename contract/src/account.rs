@@ -12,6 +12,8 @@ const MIN_STORAGE_BALANCE: Balance = 10000u128 * env::STORAGE_PRICE_PER_BYTE;
 pub struct Account {
     pub storage_balance: Balance,
     pub used_bytes: StorageUsage,
+    /// Tracks all currently active permissions given by this account.
+    pub permissions: UnorderedMap<PermissionKey, Permission>,
     #[borsh_skip]
     pub node_id: NodeId,
     #[borsh_skip]
@@ -42,6 +44,7 @@ impl Account {
         Self {
             storage_balance: 0,
             used_bytes: 0,
+            permissions: UnorderedMap::new(StorageKey::Permissions { node_id }),
             node_id,
             storage_tracker: Default::default(),
         }
