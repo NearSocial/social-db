@@ -39,8 +39,8 @@ impl Contract {
             .or_else(|| public_key.map(|pk| PermissionKey::SignerPublicKey(pk)))
             .expect("Neither account_id or public_key is provided");
         let account_id = env::predecessor_account_id();
-        let mut account = self.internal_unwrap_account(account_id.as_str());
-        account.storage_balance += attached_deposit;
+        let mut account =
+            self.internal_unwrap_account_or_create(account_id.as_str(), attached_deposit);
         let mut permission = account
             .permissions
             .get(&permission_key)

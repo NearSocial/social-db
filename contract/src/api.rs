@@ -55,8 +55,7 @@ impl Contract {
         let account_id = env::predecessor_account_id();
         let mut attached_balance = env::attached_deposit();
         for (key, value) in data.as_object_mut().expect("Data is not a JSON object") {
-            let mut account = self.internal_unwrap_account(&key);
-            account.storage_balance += attached_balance;
+            let mut account = self.internal_unwrap_account_or_create(&key, attached_balance);
             attached_balance = 0;
             let write_approved = key == account_id.as_str() && env::attached_deposit() > 0;
             let writable_node_ids = if write_approved {
