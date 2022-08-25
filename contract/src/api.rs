@@ -39,6 +39,9 @@ impl Contract {
     ///   }
     /// })
     ///
+    /// $account_id/badge/$badge_id/metadata
+    /// $account_id/badge/$badge_id/owners/$receiver_id
+    ///
     /// user_set({
     ///   "alex.near": {
     ///     "graph": {

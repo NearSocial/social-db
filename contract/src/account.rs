@@ -164,10 +164,7 @@ impl Contract {
                 total: storage.storage_balance.into(),
                 available: U128(
                     storage.storage_balance
-                        - std::cmp::max(
-                            Balance::from(storage.used_bytes) * env::storage_byte_cost(),
-                            self.storage_balance_bounds().min.0,
-                        ),
+                        - Balance::from(storage.used_bytes) * env::storage_byte_cost(),
                 ),
             })
     }
@@ -241,18 +238,6 @@ impl StorageManagement for Contract {
 
 #[near_bindgen]
 impl Contract {
-    /// Helper method for debugging storage usage that ignores minimum storage limits.
-    pub fn debug_storage_balance_of(&self, account_id: AccountId) -> Option<StorageBalance> {
-        self.internal_get_account(account_id.as_str())
-            .map(|storage| StorageBalance {
-                total: storage.storage_balance.into(),
-                available: U128(
-                    storage.storage_balance
-                        - Balance::from(storage.used_bytes) * env::storage_byte_cost(),
-                ),
-            })
-    }
-
     /// Returns limited account information for accounts from a given index up to a given limit.
     /// The information includes number of shares for collateral and borrowed assets.
     /// This method can be used to iterate on the accounts for liquidation.
