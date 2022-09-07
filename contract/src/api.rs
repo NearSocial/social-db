@@ -4,7 +4,10 @@ use near_sdk::serde_json::{Map, Value};
 use near_sdk::{log, require};
 use std::collections::HashSet;
 
+pub const MAX_KEY_LENGTH: usize = 256;
 pub const SEPARATOR: char = '/';
+pub const STAR: &str = "*";
+pub const RECURSIVE_STAR: &str = "**";
 
 #[near_bindgen]
 impl Contract {
@@ -29,6 +32,33 @@ impl Contract {
             }
             self.recursive_get(&mut res, &self.root_node, &path[..])
         }
+        json_map_recursive_cleanup(&mut res);
+        Value::Object(res)
+    }
+
+    /// ```js
+    /// Note, recursive match all pattern "**" is not allowed.
+    ///
+    /// keys({keys: [
+    ///   "alex.near/profile/*",
+    ///   "alex.near/profile/*",
+    ///   "alex.near/profile/[name,url,image_url]",
+    ///   "alex.near/profile/url",
+    ///   "alex.near/profile/",
+    ///   "bob.near/profile/*",
+    ///   "alex.near/graph/follow/*",
+    /// ]})
+    /// ```
+    pub fn keys(self, keys: Vec<String>) -> Value {
+        let mut res: Map<String, Value> = Map::new();
+        for key in keys {
+            let path: Vec<&str> = key.split(SEPARATOR).collect();
+            if path.is_empty() {
+                continue;
+            }
+            self.recursive_keys(&mut res, &self.root_node, &path[..])
+        }
+        json_map_recursive_cleanup(&mut res);
         Value::Object(res)
     }
 
@@ -78,7 +108,11 @@ impl Contract {
 
 impl Contract {
     pub fn recursive_get(&self, res: &mut Map<String, Value>, node: &Node, keys: &[&str]) {
-        let matched_entries = if keys[0] == "*" || keys[0] == "**" {
+        let is_recursive_match_all = keys[0] == RECURSIVE_STAR;
+        let matched_entries = if keys[0] == STAR || is_recursive_match_all {
+            if is_recursive_match_all {
+                require!(keys.len() == 1, "'**' pattern can only be used as a suffix")
+            }
             node.children.to_vec()
         } else {
             let key = keys[0].to_string();
@@ -92,13 +126,13 @@ impl Contract {
             match value {
                 NodeValue::Node(node_id) => {
                     let inner_node = self.internal_unwrap_node(node_id);
-                    if keys.len() > 1 || keys[0] == "**" {
+                    if keys.len() > 1 || is_recursive_match_all {
                         // Going deeper
                         let inner_map = json_map_get_inner_object(res, key);
                         if keys.len() > 1 {
                             self.recursive_get(inner_map, &inner_node, &keys[1..]);
                         }
-                        if keys[0] == "**" {
+                        if is_recursive_match_all {
                             // Non skipping step in.
                             self.recursive_get(inner_map, &inner_node, keys);
                         }
@@ -115,6 +149,37 @@ impl Contract {
                 NodeValue::Value(value_at_height) => {
                     if keys.len() == 1 {
                         json_map_set_key(res, key, value_at_height.value);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn recursive_keys(&self, res: &mut Map<String, Value>, node: &Node, keys: &[&str]) {
+        let matched_entries = if keys[0] == STAR {
+            node.children.to_vec()
+        } else {
+            let key = keys[0].to_string();
+            if let Some(value) = node.children.get(&key) {
+                vec![(key, value)]
+            } else {
+                vec![]
+            }
+        };
+        for (key, value) in matched_entries {
+            match value {
+                NodeValue::Node(node_id) => {
+                    if keys.len() == 1 {
+                        json_map_set_true(res, key);
+                    } else {
+                        let inner_node = self.internal_unwrap_node(node_id);
+                        let inner_map = json_map_get_inner_object(res, key);
+                        self.recursive_keys(inner_map, &inner_node, &keys[1..]);
+                    }
+                }
+                NodeValue::Value(_) => {
+                    if keys.len() == 1 {
+                        json_map_set_true(res, key);
                     }
                 }
             }
@@ -213,6 +278,25 @@ fn json_map_get_inner_object(res: &mut Map<String, Value>, key: String) -> &mut 
     res.get_mut(&key).unwrap().as_object_mut().unwrap()
 }
 
+fn json_map_set_true(res: &mut Map<String, Value>, key: String) {
+    match res.entry(key) {
+        Entry::Vacant(e) => {
+            e.insert(Value::Bool(true));
+        }
+        Entry::Occupied(mut e) => {
+            match e.get_mut() {
+                Value::Object(o) => {
+                    o.insert(EMPTY_KEY.to_string(), Value::Bool(true));
+                }
+                Value::Bool(s) => {
+                    *s = true;
+                }
+                _ => unreachable!(),
+            };
+        }
+    };
+}
+
 fn json_map_set_key(res: &mut Map<String, Value>, key: String, value: String) {
     match res.entry(key) {
         Entry::Vacant(e) => {
@@ -232,7 +316,19 @@ fn json_map_set_key(res: &mut Map<String, Value>, key: String, value: String) {
     };
 }
 
+// Returns true if the given map is not empty.
+fn json_map_recursive_cleanup(res: &mut Map<String, Value>) -> bool {
+    res.retain(|_k, v| match v {
+        Value::Object(o) => json_map_recursive_cleanup(o),
+        _ => true,
+    });
+    !res.is_empty()
+}
+
 pub(crate) fn is_key_valid(key: &str) -> bool {
+    if key.len() > MAX_KEY_LENGTH {
+        return false;
+    }
     for &c in key.as_bytes() {
         match c {
             b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' => {}
@@ -244,5 +340,9 @@ pub(crate) fn is_key_valid(key: &str) -> bool {
 }
 
 pub(crate) fn assert_key_valid(key: &str) {
-    assert!(is_key_valid(key), "Key contains invalid character");
+    assert!(
+        is_key_valid(key),
+        "Key contains invalid character or longer than {}",
+        MAX_KEY_LENGTH
+    );
 }
