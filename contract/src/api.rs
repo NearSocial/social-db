@@ -243,7 +243,7 @@ impl Contract {
                             let node_id = self.create_node_id();
                             node.children.insert(key, &NodeValue::Node(node_id));
                             self.recursive_set(
-                                Node::new(node_id, Some(value_at_height)),
+                                Node::new(node_id, Some(NodeValue::Value(value_at_height))),
                                 value,
                                 write_approved,
                                 writable_node_ids,

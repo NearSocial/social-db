@@ -16,6 +16,7 @@ pub struct ValueAtHeight {
 pub enum NodeValue {
     Value(ValueAtHeight),
     Node(NodeId),
+    DeletedEntry(BlockHeight),
 }
 
 mod unordered_map_expensive {
@@ -63,10 +64,14 @@ impl From<Node> for VNode {
 }
 
 impl Node {
-    pub fn new(node_id: NodeId, value: Option<ValueAtHeight>) -> Self {
+    pub fn new(node_id: NodeId, value: Option<NodeValue>) -> Self {
         let mut children = UnorderedMap::new(StorageKey::Node { node_id });
         if let Some(value) = value {
-            children.insert(&EMPTY_KEY.to_string(), &NodeValue::Value(value));
+            require!(
+                !matches!(value, NodeValue::Node(_)),
+                "Invariant: empty key value can't be a node"
+            );
+            children.insert(&EMPTY_KEY.to_string(), &value);
         }
         Self {
             node_id,

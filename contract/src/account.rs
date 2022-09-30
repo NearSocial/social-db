@@ -5,8 +5,8 @@ use near_contract_standards::storage_management::{
 use near_sdk::{require, StorageUsage};
 use std::convert::TryFrom;
 
-/// 10000 bytes
-const MIN_STORAGE_BALANCE: Balance = 10000u128 * env::STORAGE_PRICE_PER_BYTE;
+/// 2000 bytes
+const MIN_STORAGE_BALANCE: Balance = 2000u128 * env::STORAGE_PRICE_PER_BYTE;
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Account {

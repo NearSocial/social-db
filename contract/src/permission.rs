@@ -93,8 +93,11 @@ impl Contract {
                                     .children
                                     .insert(&key.to_string(), &NodeValue::Node(node_id));
                                 self.internal_set_node(
-                                    node.replace(Node::new(node_id, Some(value_at_height)))
-                                        .unwrap(),
+                                    node.replace(Node::new(
+                                        node_id,
+                                        Some(NodeValue::Value(value_at_height)),
+                                    ))
+                                    .unwrap(),
                                 );
                             }
                         };
