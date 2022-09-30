@@ -63,7 +63,7 @@ pub fn set(&mut self, data: Value);
 Examples:
 
 ```js
-user_set({
+set({
   "alex.near": {
     "profile": {
       "name": "Alex",
@@ -74,7 +74,7 @@ user_set({
   }
 })
 
-user_set({
+set({
   "alex.near": {
     "graph": {
       "follow": {
