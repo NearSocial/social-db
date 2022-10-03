@@ -1,3 +1,8 @@
+# `0.6.0`
+
+- Adding ability to pause a contract and migrate it to a new genesis.
+- Methods for extracting the data based on nodes. Useful for API server implementations.
+
 # `0.5.1`
 
 - Decrease storage requirement to `2000` bytes from `10000` bytes.

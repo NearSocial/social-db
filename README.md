@@ -4,9 +4,15 @@
 
 ### Testnet account ID
 
-Deployed at `v0.social08.testnet`
+Deployed at `v1.social08.testnet`
 
-https://explorer.testnet.near.org/accounts/v0.social08.testnet
+https://explorer.testnet.near.org/accounts/v1.social08.testnet
+
+### Mainnet account ID
+
+Deployed at `social.near`
+
+https://explorer.near.org/accounts/social.near
 
 ### About empty keys
 
@@ -64,22 +70,26 @@ Examples:
 
 ```js
 set({
-  "alex.near": {
-    "profile": {
-      "name": "Alex",
-      "image": {
-        "url": "https://gkfjklgdfjkldfg"
-      }
-    },
+  data: {
+    "alex.near": {
+      "profile": {
+        "name": "Alex",
+        "image": {
+          "url": "https://gkfjklgdfjkldfg"
+        }
+      },
+    }
   }
 })
 
 set({
-  "alex.near": {
-    "graph": {
-      "follow": {
-        "root.near": "",
-        "bob.near": "",
+  data: {
+    "alex.near": {
+      "graph": {
+        "follow": {
+          "root.near": "",
+          "bob.near": "",
+        }
       }
     }
   }
@@ -138,7 +148,7 @@ pub fn is_write_permission_granted(
 ### Debugging
 
 ```bash
-export CONTRACT_ID=v0.social08.testnet
+export CONTRACT_ID=v1.social08.testnet
 export ACCOUNT_ID=eugenethedream
 # Full contract data
 near view $CONTRACT_ID get '{"keys":["**"]}'

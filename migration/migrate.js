@@ -79,6 +79,15 @@ const config = {
 
   console.log("Num accounts: " + accounts.length);
 
+  console.log(
+    "Total balance: " +
+      accounts
+        .reduce((s, a) => s.add(Big(a[1].storage_balance)), Big(0))
+        .div(Big(10).pow(24))
+        .toFixed(3) +
+      " NEAR"
+  );
+
   console.log("Initializing node count");
   await account.functionCall({
     contractId: config.outputAccountId,
