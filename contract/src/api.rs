@@ -1,7 +1,7 @@
 use crate::*;
+use near_sdk::require;
 use near_sdk::serde_json::map::Entry;
 use near_sdk::serde_json::{Map, Value};
-use near_sdk::{log, require};
 use std::collections::HashSet;
 
 pub const MAX_KEY_LENGTH: usize = 256;
@@ -85,6 +85,7 @@ impl Contract {
     /// ```
     #[payable]
     pub fn set(&mut self, mut data: Value) {
+        self.assert_live();
         let account_id = env::predecessor_account_id();
         let mut attached_balance = env::attached_deposit();
         for (key, value) in data.as_object_mut().expect("Data is not a JSON object") {
@@ -96,7 +97,6 @@ impl Contract {
             } else {
                 account.internal_get_writeable_node_ids()
             };
-            log!("account's node_id: {}", account.node_id);
             let node = self.internal_unwrap_node(account.node_id);
             account.storage_tracker.start();
             self.recursive_set(node, value, write_approved, &writable_node_ids);
@@ -193,11 +193,6 @@ impl Contract {
         write_approved: bool,
         writable_node_ids: &HashSet<NodeId>,
     ) {
-        log!(
-            "node_id: {}, value: {}",
-            node.node_id,
-            near_sdk::serde_json::to_string(&value).unwrap()
-        );
         let write_approved = write_approved || writable_node_ids.contains(&node.node_id);
         if let Some(s) = value.as_str() {
             require!(write_approved, ERR_PERMISSION_DENIED);

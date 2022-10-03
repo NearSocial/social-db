@@ -4,43 +4,48 @@ use near_sdk::{require, BlockHeight};
 pub const EMPTY_KEY: &str = "";
 pub const ERR_PERMISSION_DENIED: &str = "Permission Denied";
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct ValueAtHeight {
     pub value: String,
     pub block_height: BlockHeight,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub enum NodeValue {
     Value(ValueAtHeight),
     Node(NodeId),
 }
 
-mod unordered_map_expensive {
-    use super::*;
-    use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-    use near_sdk::serde::Serializer;
-
-    pub fn serialize<S, K, V>(map: &UnorderedMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-        K: Serialize + BorshDeserialize + BorshSerialize,
-        V: Serialize + BorshDeserialize + BorshSerialize,
-    {
-        serializer.collect_seq(map.iter())
+impl NodeValue {
+    pub fn into_current_height(mut self) -> Self {
+        match &mut self {
+            NodeValue::Value(v) => {
+                v.block_height = env::block_height();
+            }
+            NodeValue::Node(_) => {}
+        };
+        self
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize)]
-#[serde(crate = "near_sdk::serde")]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct Node {
     #[borsh_skip]
     pub node_id: NodeId,
     pub block_height: BlockHeight,
-    #[serde(with = "unordered_map_expensive")]
     pub children: UnorderedMap<String, NodeValue>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct PartialNode {
+    pub node_id: NodeId,
+    pub block_height: BlockHeight,
+    pub children: Vec<(String, NodeValue)>,
+    pub from_index: u32,
+    pub num_children: u32,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -112,12 +117,55 @@ impl Contract {
 
 #[near_bindgen]
 impl Contract {
-    pub fn debug_nodes(self) -> Vec<Option<Node>> {
-        let mut nodes = vec![None];
-        for node_id in 1..self.node_count {
-            nodes.push(self.internal_get_node(node_id));
-        }
-        nodes[0].replace(self.root_node);
-        nodes
+    pub fn get_node_count(&self) -> u32 {
+        self.node_count
+    }
+
+    pub fn get_nodes(
+        &self,
+        from_index: Option<u32>,
+        limit: Option<u32>,
+    ) -> Vec<Option<PartialNode>> {
+        let from_index = from_index.unwrap_or(0);
+        let limit = limit.unwrap_or(self.node_count);
+        (from_index..std::cmp::min(self.node_count, from_index + limit))
+            .map(|node_id| self.get_node(node_id, None, None))
+            .collect()
+    }
+
+    pub fn get_node(
+        &self,
+        node_id: NodeId,
+        from_index: Option<u32>,
+        limit: Option<u32>,
+    ) -> Option<PartialNode> {
+        Some(if node_id == 0 {
+            partial_node_view(&self.root_node, from_index, limit)
+        } else {
+            partial_node_view(&self.internal_get_node(node_id)?, from_index, limit)
+        })
+    }
+}
+
+fn partial_node_view(node: &Node, from_index: Option<u32>, limit: Option<u32>) -> PartialNode {
+    let num_children = node.children.len() as _;
+    let from_index = from_index.unwrap_or(0);
+    let limit = limit.unwrap_or(num_children);
+    let keys = node.children.keys_as_vector();
+    let values = node.children.values_as_vector();
+    let children = (from_index..std::cmp::min(num_children, from_index + limit))
+        .map(|index| {
+            (
+                keys.get(index as _).unwrap(),
+                values.get(index as _).unwrap(),
+            )
+        })
+        .collect();
+    PartialNode {
+        node_id: node.node_id,
+        block_height: node.block_height,
+        children,
+        from_index,
+        num_children,
     }
 }

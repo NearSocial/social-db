@@ -2,14 +2,14 @@ use crate::*;
 use near_sdk::{require, PublicKey};
 use std::collections::HashSet;
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub enum PermissionKey {
     AccountId(AccountId),
     SignerPublicKey(PublicKey),
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub enum Permission {
     Granted(HashSet<NodeId>),
@@ -32,6 +32,7 @@ impl Contract {
         public_key: Option<PublicKey>,
         keys: Vec<String>,
     ) {
+        self.assert_live();
         let attached_deposit = env::attached_deposit();
         require!(attached_deposit > 0, "Requires at least 1 yocto");
         let permission_key = predecessor_id
