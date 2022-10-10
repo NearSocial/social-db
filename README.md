@@ -99,7 +99,12 @@ set({
 ### Reading data
 
 ```rust
-pub fn get(self, keys: Vec<String>) -> Value;
+pub struct GetOptions {
+    pub with_block_height: Option<bool>,
+    pub with_node_id: Option<bool>,
+}
+
+pub fn get(self, keys: Vec<String>, options: Option<GetOptions>) -> Value;
 ```
 
 - `keys` - an array of key patterns to return.
@@ -118,6 +123,35 @@ get({keys: [
   "bob.near/profile/*",
   "alex.near/graph/follow/*",
 ]})
+```
+
+### Reading keys
+
+```rust
+pub enum KeysReturnType {
+    True,
+    BlockHeight,
+    NodeId,
+}
+
+pub struct KeysOptions {
+    pub return_type: Option<KeysReturnType>,
+}
+
+pub fn keys(self, keys: Vec<String>, options: Option<KeysOptions>) -> Value;
+```
+
+- `keys` - an array of key patterns to return.
+
+Returns the aggregated JSON object.
+
+Examples:
+
+```js
+// TBD "alex.near/profile/[name,url,image_url]",
+keys({keys: [
+  "*/profile",
+], "options": {"return_type": "BlockHeight"}})
 ```
 
 ### Permissions

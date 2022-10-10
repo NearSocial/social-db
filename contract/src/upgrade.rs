@@ -3,32 +3,9 @@ use crate::*;
 #[near_bindgen]
 impl Contract {
     /// A method to migrate a state during the contract upgrade.
-    #[private]
-    #[init(ignore_state)]
-    pub fn migrate_state() -> Self {
-        #[derive(BorshDeserialize, BorshSerialize)]
-        pub struct Contract051 {
-            pub accounts: LookupMap<NodeId, VAccount>,
-            pub root_node: Node,
-            pub nodes: LookupMap<NodeId, VNode>,
-            pub node_count: NodeId,
-        }
-
-        let Contract051 {
-            accounts,
-            root_node,
-            nodes,
-            node_count,
-        } = env::state_read().unwrap();
-
-        Self {
-            accounts,
-            root_node,
-            nodes,
-            node_count,
-            status: ContractStatus::Live,
-        }
-    }
+    // #[private]
+    // #[init(ignore_state)]
+    // pub fn migrate_state() -> Self {}
 
     #[private]
     pub fn genesis_init_node_count(&mut self, node_count: u32) {

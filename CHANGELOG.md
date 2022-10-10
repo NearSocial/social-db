@@ -1,3 +1,7 @@
+# `0.7.0`
+
+- Add `options` to `get` and `keys` API calls.
+
 # `0.6.0`
 
 - Adding ability to pause a contract and migrate it to a new genesis.
