@@ -1,6 +1,6 @@
 [package]
 name = "contract"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Eugene The Dream"]
 edition = "2018"
 
