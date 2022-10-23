@@ -1,0 +1,19 @@
+{
+  "name": "migration",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "Unlicence",
+  "private": true,
+  "bin": {
+    "main": "migrate.js"
+  },
+  "dependencies": {
+    "near-api-js": "^0.45.0",
+    "node-fetch": "^2.6.1",
+    "big.js": "^6.0.3"
+  },
+  "devDependencies": {
+    "prettier": "^2.2.1"
+  }
+
+}

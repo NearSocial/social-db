@@ -8,16 +8,30 @@ use std::convert::TryFrom;
 /// 2000 bytes
 const MIN_STORAGE_BALANCE: Balance = 2000u128 * env::STORAGE_PRICE_PER_BYTE;
 
-#[derive(BorshSerialize, BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize, Serialize)]
+#[serde(crate = "near_sdk::serde")]
 pub struct Account {
+    #[serde(with = "u128_dec_format")]
     pub storage_balance: Balance,
     pub used_bytes: StorageUsage,
     /// Tracks all currently active permissions given by this account.
+    #[serde(with = "unordered_map_expensive")]
     pub permissions: UnorderedMap<PermissionKey, Permission>,
     #[borsh_skip]
     pub node_id: NodeId,
+    #[serde(skip)]
     #[borsh_skip]
     pub storage_tracker: StorageTracker,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct PartialAccount {
+    #[serde(with = "u128_dec_format")]
+    pub storage_balance: Balance,
+    pub used_bytes: StorageUsage,
+    pub permissions: Vec<(PermissionKey, Permission)>,
+    pub node_id: NodeId,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -178,6 +192,7 @@ impl StorageManagement for Contract {
         account_id: Option<AccountId>,
         registration_only: Option<bool>,
     ) -> StorageBalance {
+        self.assert_live();
         let attached_deposit: Balance = env::attached_deposit();
         let account_id = account_id
             .map(|a| a.into())
@@ -199,6 +214,7 @@ impl StorageManagement for Contract {
 
     #[payable]
     fn storage_withdraw(&mut self, amount: Option<U128>) -> StorageBalance {
+        self.assert_live();
         assert_one_yocto();
         let account_id = env::predecessor_account_id();
         if let Some(storage_balance) = self.internal_storage_balance_of(&account_id) {
@@ -221,6 +237,7 @@ impl StorageManagement for Contract {
     #[allow(unused_variables)]
     #[payable]
     fn storage_unregister(&mut self, force: Option<bool>) -> bool {
+        self.assert_live();
         env::panic_str("The account can't be unregistered");
     }
 
@@ -238,24 +255,36 @@ impl StorageManagement for Contract {
 
 #[near_bindgen]
 impl Contract {
-    /// Returns limited account information for accounts from a given index up to a given limit.
-    /// The information includes number of shares for collateral and borrowed assets.
-    /// This method can be used to iterate on the accounts for liquidation.
-    pub fn get_accounts_paged(
+    /// Returns account information for accounts from a given index up to a given limit.
+    pub fn get_accounts(
         &self,
         from_index: Option<u64>,
         limit: Option<u64>,
-    ) -> Vec<AccountId> {
+    ) -> Vec<(AccountId, Account)> {
         let keys = self.root_node.children.keys_as_vector();
+        let values = self.root_node.children.values_as_vector();
         let from_index = from_index.unwrap_or(0);
         let limit = limit.unwrap_or(keys.len());
         (from_index..std::cmp::min(keys.len(), from_index + limit))
-            .filter_map(|index| AccountId::try_from(keys.get(index).unwrap()).ok())
+            .map(|index| {
+                let node_id = match values.get(index).unwrap() {
+                    NodeValue::Value(_) => {
+                        unreachable!();
+                    }
+                    NodeValue::Node(node_id) => node_id,
+                };
+                let mut account: Account = self.accounts.get(&node_id).unwrap().into();
+                account.node_id = node_id;
+                (
+                    AccountId::try_from(keys.get(index).unwrap()).unwrap(),
+                    account,
+                )
+            })
             .collect()
     }
 
     /// Returns the number of accounts
-    pub fn get_num_accounts(&self) -> u32 {
+    pub fn get_account_count(&self) -> u32 {
         self.root_node.children.len() as _
     }
 }

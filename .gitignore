@@ -6,3 +6,5 @@ neardev
 
 # OS X
 .DS_Store
+
+res/social_db_local.wasm

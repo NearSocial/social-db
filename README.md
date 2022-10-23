@@ -4,9 +4,15 @@
 
 ### Testnet account ID
 
-Deployed at `v0.social08.testnet`
+Deployed at `v1.social08.testnet`
 
-https://explorer.testnet.near.org/accounts/v0.social08.testnet
+https://explorer.testnet.near.org/accounts/v1.social08.testnet
+
+### Mainnet account ID
+
+Deployed at `social.near`
+
+https://explorer.near.org/accounts/social.near
 
 ### About empty keys
 
@@ -63,23 +69,27 @@ pub fn set(&mut self, data: Value);
 Examples:
 
 ```js
-user_set({
-  "alex.near": {
-    "profile": {
-      "name": "Alex",
-      "image": {
-        "url": "https://gkfjklgdfjkldfg"
-      }
-    },
+set({
+  data: {
+    "alex.near": {
+      "profile": {
+        "name": "Alex",
+        "image": {
+          "url": "https://gkfjklgdfjkldfg"
+        }
+      },
+    }
   }
 })
 
-user_set({
-  "alex.near": {
-    "graph": {
-      "follow": {
-        "root.near": "",
-        "bob.near": "",
+set({
+  data: {
+    "alex.near": {
+      "graph": {
+        "follow": {
+          "root.near": "",
+          "bob.near": "",
+        }
       }
     }
   }
@@ -89,7 +99,12 @@ user_set({
 ### Reading data
 
 ```rust
-pub fn get(self, keys: Vec<String>) -> Value;
+pub struct GetOptions {
+    pub with_block_height: Option<bool>,
+    pub with_node_id: Option<bool>,
+}
+
+pub fn get(self, keys: Vec<String>, options: Option<GetOptions>) -> Value;
 ```
 
 - `keys` - an array of key patterns to return.
@@ -108,6 +123,35 @@ get({keys: [
   "bob.near/profile/*",
   "alex.near/graph/follow/*",
 ]})
+```
+
+### Reading keys
+
+```rust
+pub enum KeysReturnType {
+    True,
+    BlockHeight,
+    NodeId,
+}
+
+pub struct KeysOptions {
+    pub return_type: Option<KeysReturnType>,
+}
+
+pub fn keys(self, keys: Vec<String>, options: Option<KeysOptions>) -> Value;
+```
+
+- `keys` - an array of key patterns to return.
+
+Returns the aggregated JSON object.
+
+Examples:
+
+```js
+// TBD "alex.near/profile/[name,url,image_url]",
+keys({keys: [
+  "*/profile",
+], "options": {"return_type": "BlockHeight"}})
 ```
 
 ### Permissions
@@ -138,7 +182,7 @@ pub fn is_write_permission_granted(
 ### Debugging
 
 ```bash
-export CONTRACT_ID=v0.social08.testnet
+export CONTRACT_ID=v1.social08.testnet
 export ACCOUNT_ID=eugenethedream
 # Full contract data
 near view $CONTRACT_ID get '{"keys":["**"]}'
