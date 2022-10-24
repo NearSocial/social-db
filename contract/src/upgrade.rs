@@ -39,9 +39,6 @@ impl Contract {
                 .get(&account_id.to_string())
                 .expect("Missing account node, make sure initializing nodes first")
             {
-                NodeValue::Value(_) => {
-                    env::panic_str("Unexpected account key. The value is not a node.")
-                }
                 NodeValue::Node(node_id) => {
                     let mut account: Account = self
                         .accounts
@@ -51,6 +48,7 @@ impl Contract {
                     account.node_id = node_id;
                     account
                 }
+                _ => env::panic_str("Unexpected account key. The value is not a node."),
             };
             assert_eq!(
                 current_account.node_id, account.node_id,

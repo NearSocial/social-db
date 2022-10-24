@@ -1,3 +1,7 @@
+# `0.8.0`
+
+- Add `options` to `get` and `keys` API calls.
+
 # `0.7.0`
 
 - Add `options` to `get` and `keys` API calls.

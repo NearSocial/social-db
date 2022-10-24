@@ -79,14 +79,12 @@ impl Contract {
             .children
             .get(&account_id.to_string())
             .map(|v| match v {
-                NodeValue::Value(_) => {
-                    env::panic_str("Unexpected account key. The value is not a node.")
-                }
                 NodeValue::Node(node_id) => {
                     let mut account: Account = self.accounts.get(&node_id).unwrap().into();
                     account.node_id = node_id;
                     account
                 }
+                _ => env::panic_str("Unexpected account key. The value is not a node."),
             })
     }
 
@@ -268,10 +266,10 @@ impl Contract {
         (from_index..std::cmp::min(keys.len(), from_index + limit))
             .map(|index| {
                 let node_id = match values.get(index).unwrap() {
-                    NodeValue::Value(_) => {
+                    NodeValue::Node(node_id) => node_id,
+                    _ => {
                         unreachable!();
                     }
-                    NodeValue::Node(node_id) => node_id,
                 };
                 let mut account: Account = self.accounts.get(&node_id).unwrap().into();
                 account.node_id = node_id;

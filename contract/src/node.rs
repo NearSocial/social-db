@@ -26,8 +26,19 @@ impl NodeValue {
                 v.block_height = env::block_height();
             }
             NodeValue::Node(_) => {}
+            NodeValue::DeletedEntry(v) => {
+                *v = env::block_height();
+            }
         };
         self
+    }
+
+    pub fn get_block_height(&self) -> Option<BlockHeight> {
+        match self {
+            NodeValue::Value(v) => Some(v.block_height),
+            NodeValue::Node(_) => None,
+            NodeValue::DeletedEntry(v) => Some(*v),
+        }
     }
 }
 
@@ -85,14 +96,18 @@ impl Node {
         }
     }
 
-    pub fn set(&mut self, key: &String, value: &str) {
-        let prev_value = self.children.insert(
-            &key,
-            &NodeValue::Value(ValueAtHeight {
-                value: value.to_string(),
+    pub fn set(&mut self, key: &String, value: &near_sdk::serde_json::Value) {
+        let value = if let Some(s) = value.as_str() {
+            NodeValue::Value(ValueAtHeight {
+                value: s.to_string(),
                 block_height: env::block_height(),
-            }),
-        );
+            })
+        } else if value.is_null() {
+            NodeValue::DeletedEntry(env::block_height())
+        } else {
+            unreachable!("Invariant: value must be a string or null");
+        };
+        let prev_value = self.children.insert(&key, &value);
         require!(
             !matches!(prev_value, Some(NodeValue::Node(_))),
             "Internal error, the replaced value was a node"

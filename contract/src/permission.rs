@@ -83,7 +83,7 @@ impl Contract {
                                     node.replace(self.internal_unwrap_node(node_id)).unwrap(),
                                 );
                             }
-                            Some(NodeValue::Value(value_at_height)) => {
+                            Some(node_value) => {
                                 assert_ne!(
                                     key, EMPTY_KEY,
                                     "The empty key's value should be a string"
@@ -94,11 +94,7 @@ impl Contract {
                                     .children
                                     .insert(&key.to_string(), &NodeValue::Node(node_id));
                                 self.internal_set_node(
-                                    node.replace(Node::new(
-                                        node_id,
-                                        Some(NodeValue::Value(value_at_height)),
-                                    ))
-                                    .unwrap(),
+                                    node.replace(Node::new(node_id, Some(node_value))).unwrap(),
                                 );
                             }
                         };
