@@ -1,3 +1,8 @@
+# `0.8.0`
+
+- Ability to delete data by passing `null` leaves.
+- Support for retrieving deleted data with option `return_deleted: true`.
+
 # `0.7.0`
 
 - Add `options` to `get` and `keys` API calls.

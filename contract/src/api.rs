@@ -16,9 +16,10 @@ pub const KEY_NODE_ID: &str = ":node";
 pub struct GetOptions {
     pub with_block_height: Option<bool>,
     pub with_node_id: Option<bool>,
+    pub return_deleted: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub enum KeysReturnType {
     True,
@@ -26,16 +27,11 @@ pub enum KeysReturnType {
     NodeId,
 }
 
-impl Default for KeysReturnType {
-    fn default() -> Self {
-        Self::True
-    }
-}
-
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct KeysOptions {
     pub return_type: Option<KeysReturnType>,
+    pub return_deleted: Option<bool>,
 }
 
 #[near_bindgen]
@@ -80,14 +76,27 @@ impl Contract {
     /// ]})
     /// ```
     pub fn keys(self, keys: Vec<String>, options: Option<KeysOptions>) -> Value {
-        let return_type = options.and_then(|o| o.return_type).unwrap_or_default();
+        let return_type = options
+            .as_ref()
+            .and_then(|o| o.return_type)
+            .unwrap_or(KeysReturnType::True);
+        let return_deleted = options
+            .as_ref()
+            .and_then(|o| o.return_deleted)
+            .unwrap_or(false);
         let mut res: Map<String, Value> = Map::new();
         for key in keys {
             let path: Vec<&str> = key.split(SEPARATOR).collect();
             if path.is_empty() {
                 continue;
             }
-            self.recursive_keys(&mut res, &self.root_node, &path[..], &return_type)
+            self.recursive_keys(
+                &mut res,
+                &self.root_node,
+                &path[..],
+                &return_type,
+                return_deleted,
+            )
         }
         json_map_recursive_cleanup(&mut res);
         Value::Object(res)
@@ -146,10 +155,10 @@ impl Contract {
         options: &GetOptions,
     ) {
         let is_recursive_match_all = keys[0] == RECURSIVE_STAR;
+        if is_recursive_match_all {
+            require!(keys.len() == 1, "'**' pattern can only be used as a suffix")
+        }
         let matched_entries = if keys[0] == STAR || is_recursive_match_all {
-            if is_recursive_match_all {
-                require!(keys.len() == 1, "'**' pattern can only be used as a suffix")
-            }
             node.children.to_vec()
         } else {
             let key = keys[0].to_string();
@@ -180,33 +189,21 @@ impl Contract {
                             self.recursive_get(inner_map, &inner_node, keys, options);
                         }
                     } else {
-                        if let Some(NodeValue::Value(value_at_height)) =
-                            inner_node.children.get(&EMPTY_KEY.to_string())
-                        {
+                        if let Some(node_value) = inner_node.children.get(&EMPTY_KEY.to_string()) {
                             if options.with_node_id == Some(true) {
                                 let inner_map = json_map_get_inner_object(res, key.clone());
                                 inner_map
                                     .insert(KEY_NODE_ID.to_string(), inner_node.node_id.into());
                             }
-                            json_map_set_key(
-                                res,
-                                key,
-                                value_at_height,
-                                options.with_block_height == Some(true),
-                            );
+                            json_map_set_key(res, key, node_value, &options);
                         } else {
                             // mismatch skipping
                         }
                     }
                 }
-                NodeValue::Value(value_at_height) => {
+                node_value => {
                     if keys.len() == 1 {
-                        json_map_set_key(
-                            res,
-                            key,
-                            value_at_height,
-                            options.with_block_height == Some(true),
-                        );
+                        json_map_set_key(res, key, node_value, &options);
                     }
                 }
             }
@@ -219,6 +216,7 @@ impl Contract {
         node: &Node,
         keys: &[&str],
         return_type: &KeysReturnType,
+        return_deleted: bool,
     ) {
         let matched_entries = if keys[0] == STAR {
             node.children.to_vec()
@@ -246,7 +244,13 @@ impl Contract {
                     } else {
                         let inner_node = self.internal_unwrap_node(node_id);
                         let inner_map = json_map_get_inner_object(res, key);
-                        self.recursive_keys(inner_map, &inner_node, &keys[1..], &return_type);
+                        self.recursive_keys(
+                            inner_map,
+                            &inner_node,
+                            &keys[1..],
+                            &return_type,
+                            return_deleted,
+                        );
                     }
                 }
                 NodeValue::Value(value_at_height) => {
@@ -254,6 +258,16 @@ impl Contract {
                         let value = match return_type {
                             KeysReturnType::True => true.into(),
                             KeysReturnType::BlockHeight => value_at_height.block_height.into(),
+                            KeysReturnType::NodeId => Value::Null,
+                        };
+                        json_map_set_value(res, key, value);
+                    }
+                }
+                NodeValue::DeletedEntry(block_height) => {
+                    if keys.len() == 1 && return_deleted {
+                        let value = match return_type {
+                            KeysReturnType::True => true.into(),
+                            KeysReturnType::BlockHeight => block_height.into(),
                             KeysReturnType::NodeId => Value::Null,
                         };
                         json_map_set_value(res, key, value);
@@ -271,9 +285,9 @@ impl Contract {
         writable_node_ids: &HashSet<NodeId>,
     ) {
         let write_approved = write_approved || writable_node_ids.contains(&node.node_id);
-        if let Some(s) = value.as_str() {
+        if value.is_string() || value.is_null() {
             require!(write_approved, ERR_PERMISSION_DENIED);
-            node.set(&EMPTY_KEY.to_string(), s);
+            node.set(&EMPTY_KEY.to_string(), value);
         } else if let Some(obj) = value.as_object_mut() {
             for (key, value) in obj {
                 assert_key_valid(key.as_str());
@@ -281,8 +295,8 @@ impl Contract {
                 match node_value {
                     None => {
                         require!(write_approved, ERR_PERMISSION_DENIED);
-                        if let Some(s) = value.as_str() {
-                            node.set(key, s);
+                        if value.is_string() || value.is_null() {
+                            node.set(key, value);
                         } else {
                             let node_id = self.create_node_id();
                             node.children.insert(key, &NodeValue::Node(node_id));
@@ -302,20 +316,20 @@ impl Contract {
                             writable_node_ids,
                         );
                     }
-                    Some(NodeValue::Value(value_at_height)) => {
+                    Some(old_node_value) => {
                         require!(write_approved, ERR_PERMISSION_DENIED);
-                        if let Some(s) = value.as_str() {
-                            node.set(key, s);
+                        if value.is_string() || value.is_null() {
+                            node.set(key, value);
                         } else {
                             assert_ne!(
                                 key.as_str(),
                                 EMPTY_KEY,
-                                "The empty key's value should be a string"
+                                "The empty key's value should be a string or null"
                             );
                             let node_id = self.create_node_id();
                             node.children.insert(key, &NodeValue::Node(node_id));
                             self.recursive_set(
-                                Node::new(node_id, Some(value_at_height)),
+                                Node::new(node_id, Some(old_node_value)),
                                 value,
                                 write_approved,
                                 writable_node_ids,
@@ -325,7 +339,7 @@ impl Contract {
                 }
             }
         } else {
-            env::panic_str("The JSON value is not a string and not an object")
+            env::panic_str("The JSON value is not a string, a null or an object")
         }
         self.internal_set_node(node);
     }
@@ -338,7 +352,7 @@ fn json_map_get_inner_object(res: &mut Map<String, Value>, key: String) -> &mut 
         }
         Entry::Occupied(mut e) => {
             if !e.get().is_object() {
-                // Assuming the previous value is a string
+                // Assuming the previous value is a string or null
                 let prev_value = e.insert(Value::Object(Map::new()));
                 e.get_mut()
                     .as_object_mut()
@@ -369,30 +383,39 @@ fn json_map_set_value(res: &mut Map<String, Value>, key: String, value: Value) {
 fn json_map_set_key(
     res: &mut Map<String, Value>,
     key: String,
-    value: ValueAtHeight,
-    with_block_height: bool,
+    node_value: NodeValue,
+    options: &GetOptions,
 ) {
     match res.entry(key) {
         Entry::Vacant(e) => {
-            if with_block_height {
+            let block_height = node_value.get_block_height();
+            let new_value = if let NodeValue::Value(value_at_height) = node_value {
+                Value::String(value_at_height.value)
+            } else if options.return_deleted == Some(true)
+                && matches!(node_value, NodeValue::DeletedEntry(_))
+            {
+                Value::Null
+            } else {
+                return;
+            };
+            if options.with_block_height == Some(true) {
                 let mut m = Map::new();
-                m.insert(EMPTY_KEY.to_string(), Value::String(value.value));
-                m.insert(KEY_BLOCK_HEIGHT.to_string(), value.block_height.into());
+                m.insert(KEY_BLOCK_HEIGHT.to_string(), block_height.unwrap().into());
+                m.insert(EMPTY_KEY.to_string(), new_value);
+
                 e.insert(Value::Object(m));
             } else {
-                e.insert(Value::String(value.value));
+                e.insert(new_value);
             }
         }
         Entry::Occupied(mut e) => {
             match e.get_mut() {
                 Value::Object(o) => {
-                    json_map_set_key(o, EMPTY_KEY.to_string(), value, with_block_height);
+                    json_map_set_key(o, EMPTY_KEY.to_string(), node_value, options);
                 }
-                Value::String(s) => {
-                    require!(!with_block_height, "Invariant");
-                    *s = value.value;
+                _ => {
+                    // Shouldn't be any changes as the values should match.
                 }
-                _ => unreachable!(),
             };
         }
     };
