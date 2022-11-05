@@ -64,7 +64,8 @@ The attached deposit will be transferred to the first key. If the account doesn'
 pub fn set(&mut self, data: Value);
 ```
 
-- `data` is an object to store.
+Arguments:
+- `data` is an object to store. The leaf values should be strings or null values. String values will be added, while null values will be deleted.
 
 Examples:
 
@@ -98,34 +99,65 @@ set({
 
 ### Reading data
 
+Returns the data for a list of given key patterns.
+It takes one or more path patterns as arguments, and returns the matching data.
+The path pattern is a string that can contain wildcards.
+For example:
+- `alice.near/profile/**` will match the entire profile data of account `alice.near`.
+- `alice.near/profile/*` will match all the fields of the profile, but not the nested objects.
+- `alice.near/profile/name` will match only the name field of the profile.
+- `*/widget/*` will match all the widgets of all the accounts.
+
 ```rust
 pub struct GetOptions {
     pub with_block_height: Option<bool>,
     pub with_node_id: Option<bool>,
+    pub return_deleted: Option<bool>,
 }
 
 pub fn get(self, keys: Vec<String>, options: Option<GetOptions>) -> Value;
 ```
 
+Arguments:
 - `keys` - an array of key patterns to return.
+- `options` - optional argument to specify options.
+
+Options:
+- `with_block_height` - if true, for every value and a node will add the block height of the data with the key `:block`.
+- `with_node_id` - if true, for every node will add the node index with the key `:node`.
+- `return_deleted` - if true, will include deleted keys with the value `null`.
 
 Returns the aggregated JSON object.
 
 Examples:
 
 ```js
-// TBD "alex.near/profile/[name,url,image_url]",
-get({keys: [
-  "alex.near/profile/*",
-  "alex.near/profile/**",
-  "alex.near/profile/url",
-  "alex.near/profile",
-  "bob.near/profile/*",
-  "alex.near/graph/follow/*",
-]})
+get({keys: ["alex.near/profile/name"]})
+
+get({keys: ["alex.near/profile/name", "root.near/profile/name"]})
+
+get({keys: ["alex.near/profile/name", "alex.near/profile/description"]})
+
+get({keys: ["alex.near/profile/tags/*"]})
+
+get({keys: ["alex.near/profile/**"]})
+
+get({keys: ["*/widget/*"]})
+
+get({keys: ["alex.near/profile/tags/*"], options: {return_deleted: true}})
 ```
 
 ### Reading keys
+
+The `keys` method allows to get the list of keys that match the path pattern.
+It's useful for querying the data without reading values.
+It also has an additional `options` field that can be used to specify the return type and whether to return deleted keys.
+For example:
+- `alice.near/profile/*` will return the list of all the fields of the profile, but not the nested objects.
+- `*/profile/image/nft` will return the list of all the accounts that have an NFT image in their profile.
+- `alice.near/widget/*` with `return_deleted` option will return the list of all the widget names of the account, including the deleted ones.
+- `alice.near/widget/*` with `return_type` equal to `BlockHeight` will return the list of all the widget names of the account and the value will be the block height when the widget was last updated.
+- Note `**` is not supported by the `keys` method.
 
 ```rust
 pub enum KeysReturnType {
@@ -136,22 +168,32 @@ pub enum KeysReturnType {
 
 pub struct KeysOptions {
     pub return_type: Option<KeysReturnType>,
+    pub return_deleted: Option<bool>,
 }
 
 pub fn keys(self, keys: Vec<String>, options: Option<KeysOptions>) -> Value;
 ```
 
+Arguments:
 - `keys` - an array of key patterns to return.
+- `options` - optional argument to specify options.
+
+Options:
+- `return_type` - if `BlockHeight`, will return the block height of the key instead of `true`, if `NodeId`, will return the node index of the key instead of `true`.
+- `return_deleted` - if true, will include deleted keys.
 
 Returns the aggregated JSON object.
 
 Examples:
 
 ```js
-// TBD "alex.near/profile/[name,url,image_url]",
-keys({keys: [
-  "*/profile",
-], "options": {"return_type": "BlockHeight"}})
+keys({keys: ["alex.near/profile/*"]})
+
+keys({keys: ["*/profile/image/nft"]})
+
+keys({keys: ["alex.near/widget/*"], options: {return_deleted: true}})
+
+keys({keys: ["alex.near/widget/*"], options: {return_type: "BlockHeight"}})
 ```
 
 ### Permissions
