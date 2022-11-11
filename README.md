@@ -169,6 +169,7 @@ pub enum KeysReturnType {
 pub struct KeysOptions {
     pub return_type: Option<KeysReturnType>,
     pub return_deleted: Option<bool>,
+    pub values_only: Option<bool>,
 }
 
 pub fn keys(self, keys: Vec<String>, options: Option<KeysOptions>) -> Value;
@@ -181,6 +182,7 @@ Arguments:
 Options:
 - `return_type` - if `BlockHeight`, will return the block height of the key instead of `true`, if `NodeId`, will return the node index of the key instead of `true`.
 - `return_deleted` - if true, will include deleted keys.
+- `values_only` - if `true`, only matches keys which value is not a node. It's needed to filter out deleted entries. Since a node can't be deleted right now.
 
 Returns the aggregated JSON object.
 
@@ -193,7 +195,7 @@ keys({keys: ["*/profile/image/nft"]})
 
 keys({keys: ["alex.near/widget/*"], options: {return_deleted: true}})
 
-keys({keys: ["alex.near/widget/*"], options: {return_type: "BlockHeight"}})
+keys({keys: ["alex.near/widget/*"], options: {return_type: "BlockHeight", values_only: true}})
 ```
 
 ### Permissions
