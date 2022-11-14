@@ -27,11 +27,15 @@ pub enum KeysReturnType {
     NodeId,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 #[serde(crate = "near_sdk::serde")]
 pub struct KeysOptions {
+    /// The type of the returned values. By default returns true.
     pub return_type: Option<KeysReturnType>,
+    /// Whether to match keys for deleted values.
     pub return_deleted: Option<bool>,
+    /// Whether to match nodes.
+    pub values_only: Option<bool>,
 }
 
 #[near_bindgen]
@@ -52,7 +56,13 @@ impl Contract {
         let options = options.unwrap_or_default();
         let mut res: Map<String, Value> = Map::new();
         for key in keys {
-            let path: Vec<&str> = key.split(SEPARATOR).collect();
+            let mut path: Vec<&str> = key.split(SEPARATOR).collect();
+            if path.last() == Some(&EMPTY_KEY) {
+                path.pop();
+                if path.last() == Some(&EMPTY_KEY) {
+                    continue;
+                }
+            }
             if path.is_empty() {
                 continue;
             }
@@ -76,17 +86,16 @@ impl Contract {
     /// ]})
     /// ```
     pub fn keys(self, keys: Vec<String>, options: Option<KeysOptions>) -> Value {
-        let return_type = options
-            .as_ref()
-            .and_then(|o| o.return_type)
-            .unwrap_or(KeysReturnType::True);
-        let return_deleted = options
-            .as_ref()
-            .and_then(|o| o.return_deleted)
-            .unwrap_or(false);
+        let options = options.unwrap_or_default();
         let mut res: Map<String, Value> = Map::new();
         for key in keys {
-            let path: Vec<&str> = key.split(SEPARATOR).collect();
+            let mut path: Vec<&str> = key.split(SEPARATOR).collect();
+            if path.last() == Some(&EMPTY_KEY) {
+                path.pop();
+                if path.last() == Some(&EMPTY_KEY) {
+                    continue;
+                }
+            }
             if path.is_empty() {
                 continue;
             }
@@ -94,8 +103,7 @@ impl Contract {
                 &mut res,
                 &self.root_node,
                 &path[..],
-                &return_type,
-                return_deleted,
+                &options,
             )
         }
         json_map_recursive_cleanup(&mut res);
@@ -215,8 +223,7 @@ impl Contract {
         res: &mut Map<String, Value>,
         node: &Node,
         keys: &[&str],
-        return_type: &KeysReturnType,
-        return_deleted: bool,
+        options: &KeysOptions,
     ) {
         let matched_entries = if keys[0] == STAR {
             node.children.to_vec()
@@ -232,13 +239,34 @@ impl Contract {
             match value {
                 NodeValue::Node(node_id) => {
                     if keys.len() == 1 {
-                        let value = match return_type {
-                            KeysReturnType::True => true.into(),
-                            KeysReturnType::BlockHeight => {
-                                let inner_node = self.internal_unwrap_node(node_id);
-                                inner_node.block_height.into()
+                        let value = if options.values_only.unwrap_or(false) {
+                            let inner_node = self.internal_unwrap_node(node_id);
+                            if let Some(node_value) = inner_node.children.get(&EMPTY_KEY.to_string()) {
+                                if options.return_deleted.unwrap_or(false) || !matches!(node_value, NodeValue::DeletedEntry(_)) {
+                                    match options.return_type.unwrap_or(KeysReturnType::True) {
+                                        KeysReturnType::True => true.into(),
+                                        KeysReturnType::BlockHeight => {
+                                            node_value.get_block_height().unwrap().into()
+                                        }
+                                        KeysReturnType::NodeId => node_id.into(),
+                                    }
+                                } else {
+                                    // deleted entry
+                                    continue;
+                                }
+                            } else {
+                                // mismatch skipping
+                                continue;
                             }
-                            KeysReturnType::NodeId => node_id.into(),
+                        } else {
+                            match options.return_type.unwrap_or(KeysReturnType::True) {
+                                KeysReturnType::True => true.into(),
+                                KeysReturnType::BlockHeight => {
+                                    let inner_node = self.internal_unwrap_node(node_id);
+                                    inner_node.block_height.into()
+                                }
+                                KeysReturnType::NodeId => node_id.into(),
+                            }
                         };
                         json_map_set_value(res, key, value);
                     } else {
@@ -248,14 +276,13 @@ impl Contract {
                             inner_map,
                             &inner_node,
                             &keys[1..],
-                            &return_type,
-                            return_deleted,
+                            options,
                         );
                     }
                 }
                 NodeValue::Value(value_at_height) => {
                     if keys.len() == 1 {
-                        let value = match return_type {
+                        let value = match options.return_type.unwrap_or(KeysReturnType::True) {
                             KeysReturnType::True => true.into(),
                             KeysReturnType::BlockHeight => value_at_height.block_height.into(),
                             KeysReturnType::NodeId => Value::Null,
@@ -264,8 +291,8 @@ impl Contract {
                     }
                 }
                 NodeValue::DeletedEntry(block_height) => {
-                    if keys.len() == 1 && return_deleted {
-                        let value = match return_type {
+                    if keys.len() == 1 && options.return_deleted.unwrap_or(false) {
+                        let value = match options.return_type.unwrap_or(KeysReturnType::True) {
                             KeysReturnType::True => true.into(),
                             KeysReturnType::BlockHeight => block_height.into(),
                             KeysReturnType::NodeId => Value::Null,

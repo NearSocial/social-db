@@ -1,3 +1,8 @@
+# `0.9.0`
+
+- Fix returned values of the trailing `/` for `get` and `keys`.
+- New options for `keys` API: `value_only`. If `true`, only matches keys which value is not a node. It's needed to filter out deleted entries. Since a node can't be deleted right now.
+
 # `0.8.0`
 
 - Ability to delete data by passing `null` leaves.
