@@ -5,13 +5,17 @@ mod permission;
 mod storage_tracker;
 mod upgrade;
 mod utils;
+mod legacy;
+mod shared_storage;
 
 pub use crate::account::*;
 pub use crate::api::*;
 pub use crate::node::*;
 pub use crate::permission::*;
+pub use crate::shared_storage::*;
 use crate::storage_tracker::*;
 use crate::utils::*;
+use crate::legacy::*;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap};
@@ -19,7 +23,7 @@ use near_sdk::json_types::U128;
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{
     assert_one_yocto, env, near_bindgen, require, AccountId, Balance, BorshStorageKey,
-    PanicOnDefault, Promise,
+    PanicOnDefault, Promise, StorageUsage,
 };
 
 #[derive(BorshSerialize, BorshStorageKey)]
@@ -29,6 +33,7 @@ enum StorageKey {
     Nodes,
     Node { node_id: NodeId },
     Permissions { node_id: NodeId },
+    SharedStoragePools,
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Copy, Clone)]
@@ -49,6 +54,7 @@ pub struct Contract {
     pub nodes: LookupMap<NodeId, VNode>,
     pub node_count: NodeId,
     pub status: ContractStatus,
+    pub shared_storage_pools: LookupMap<AccountId, VSharedStoragePool>,
 }
 
 #[near_bindgen]
@@ -61,6 +67,7 @@ impl Contract {
             nodes: LookupMap::new(StorageKey::Nodes),
             node_count: 1,
             status: ContractStatus::Genesis,
+            shared_storage_pools: LookupMap::new(StorageKey::SharedStoragePools),
         }
     }
 

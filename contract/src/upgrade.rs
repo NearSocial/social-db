@@ -2,10 +2,29 @@ use crate::*;
 
 #[near_bindgen]
 impl Contract {
-    /// A method to migrate a state during the contract upgrade.
-    // #[private]
-    // #[init(ignore_state)]
-    // pub fn migrate_state() -> Self {}
+    // A method to migrate a state during the contract upgrade.
+    #[private]
+    #[init(ignore_state)]
+    pub fn migrate_state() -> Self {
+        #[derive(BorshDeserialize, BorshSerialize)]
+        pub struct OldContract {
+            pub accounts: LookupMap<NodeId, VAccount>,
+            pub root_node: Node,
+            pub nodes: LookupMap<NodeId, VNode>,
+            pub node_count: NodeId,
+            pub status: ContractStatus,
+        }
+
+        let old_contract: OldContract = env::state_read().expect("Old state doesn't exist");
+        Self {
+            accounts: old_contract.accounts,
+            root_node: old_contract.root_node,
+            nodes: old_contract.nodes,
+            node_count: old_contract.node_count,
+            status: old_contract.status,
+            shared_storage_pools: LookupMap::new(StorageKey::SharedStoragePools),
+        }
+    }
 
     #[private]
     pub fn genesis_init_node_count(&mut self, node_count: u32) {
