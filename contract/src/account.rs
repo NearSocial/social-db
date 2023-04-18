@@ -132,7 +132,7 @@ impl Contract {
     ) {
         let min_balance = self.storage_balance_bounds().min.0;
         if storage_deposit < min_balance {
-            env::panic_str("The attached deposit is less than the mimimum storage balance");
+            env::panic_str("The attached deposit is less than the minimum storage balance");
         }
 
         let mut account = Account::new(self.create_node_id());
@@ -161,7 +161,7 @@ impl Contract {
             max_bytes,
         };
         if shared_storage.max_bytes < MIN_STORAGE_BYTES {
-            env::panic_str("The max bytes is less than the mimimum storage required");
+            env::panic_str("The max bytes is less than the minimum storage required");
         }
         let shared_storage_pool = self.internal_unwrap_shared_storage_pool(&shared_storage.pool_id);
         if shared_storage.available_bytes(&shared_storage_pool) < MIN_STORAGE_BYTES {
@@ -249,11 +249,18 @@ impl Contract {
 
     pub fn internal_storage_balance_of(&self, account_id: &AccountId) -> Option<StorageBalance> {
         self.internal_get_account(account_id.as_str())
-            .map(|storage| StorageBalance {
-                total: storage.storage_balance.into(),
+            .map(|account| StorageBalance {
+                total: account.storage_balance.into(),
                 available: U128(
-                    storage.storage_balance
-                        - Balance::from(storage.used_bytes) * env::storage_byte_cost(),
+                    account.storage_balance
+                        - Balance::from(
+                            account.used_bytes
+                                - account
+                                    .shared_storage
+                                    .as_ref()
+                                    .map(|s| s.used_bytes)
+                                    .unwrap_or(0),
+                        ) * env::storage_byte_cost(),
                 ),
             })
     }

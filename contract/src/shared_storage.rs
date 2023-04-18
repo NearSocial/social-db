@@ -68,6 +68,13 @@ impl AccountSharedStorage {
     }
 }
 
+#[derive(Serialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct StorageView {
+    pub used_bytes: StorageUsage,
+    pub available_bytes: StorageUsage,
+}
+
 impl Contract {
     pub fn internal_get_shared_storage_pool(
         &self,
@@ -242,5 +249,33 @@ impl Contract {
                 pool_id.clone(),
             );
         }
+    }
+
+    /// Returns the storage usage of the given account in bytes and accounts for the shared storage.
+    pub fn get_account_storage(&self, account_id: AccountId) -> Option<StorageView> {
+        self.internal_get_account(account_id.as_str())
+            .map(|account| {
+                let available_shared_bytes = account
+                    .shared_storage
+                    .as_ref()
+                    .map(|s| {
+                        let pool = self.internal_unwrap_shared_storage_pool(&s.pool_id);
+                        s.available_bytes(&pool)
+                    })
+                    .unwrap_or(0);
+                let used_shared_bytes = account
+                    .shared_storage
+                    .as_ref()
+                    .map(|s| s.used_bytes)
+                    .unwrap_or(0);
+                let available_bytes = (account.storage_balance / env::STORAGE_PRICE_PER_BYTE)
+                    as u64
+                    - (account.used_bytes - used_shared_bytes);
+
+                StorageView {
+                    used_bytes: account.used_bytes,
+                    available_bytes: available_bytes + available_shared_bytes,
+                }
+            })
     }
 }
