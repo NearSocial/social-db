@@ -6,7 +6,7 @@ use near_sdk::require;
 use std::convert::TryFrom;
 
 pub const MIN_STORAGE_BYTES: StorageUsage = 2000;
-const MIN_STORAGE_BALANCE: Balance = Balance::from(MIN_STORAGE_BYTES) * env::STORAGE_PRICE_PER_BYTE;
+const MIN_STORAGE_BALANCE: Balance = MIN_STORAGE_BYTES as Balance * env::STORAGE_PRICE_PER_BYTE;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -70,13 +70,13 @@ impl Account {
     }
 
     fn assert_storage_covered(&self) {
-        let shared_bytes = self
+        let shared_bytes_used = self
             .shared_storage
             .as_ref()
             .map(|s| s.used_bytes)
             .unwrap_or(0);
         let storage_balance_needed =
-            Balance::from(self.used_bytes - shared_bytes) * env::storage_byte_cost();
+            Balance::from(self.used_bytes - shared_bytes_used) * env::storage_byte_cost();
         assert!(
             storage_balance_needed <= self.storage_balance,
             "Not enough storage balance"
@@ -356,6 +356,10 @@ impl Contract {
                 )
             })
             .collect()
+    }
+
+    pub fn get_account(&self, account_id: AccountId) -> Option<Account> {
+        self.internal_get_account(account_id.as_str())
     }
 
     /// Returns the number of accounts

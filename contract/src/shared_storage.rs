@@ -7,6 +7,20 @@ pub enum VSharedStoragePool {
     Current(SharedStoragePool),
 }
 
+impl From<VSharedStoragePool> for SharedStoragePool {
+    fn from(v: VSharedStoragePool) -> Self {
+        match v {
+            VSharedStoragePool::Current(c) => c,
+        }
+    }
+}
+
+impl From<SharedStoragePool> for VSharedStoragePool {
+    fn from(c: SharedStoragePool) -> Self {
+        VSharedStoragePool::Current(c)
+    }
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
 pub struct SharedStoragePool {
@@ -110,6 +124,7 @@ impl Contract {
                 storage_tracker.bytes_added - storage_tracker.bytes_released;
             self.internal_set_shared_storage_pool(&owner_id, shared_storage_pool);
         }
+        storage_tracker.clear();
     }
 
     pub fn share_storage(&mut self, account_id: AccountId, max_bytes: StorageUsage) {
@@ -126,7 +141,7 @@ impl Contract {
         if let Some(mut account) = account {
             // The account already exists.
 
-            if Some(current_shared_storage) = account.shared_storage.take() {
+            if let Some(current_shared_storage) = account.shared_storage.take() {
                 // The account is already using shared storage.
 
                 if max_bytes < current_shared_storage.used_bytes {
@@ -139,7 +154,7 @@ impl Contract {
                         env::panic_str("Max bytes must be greater than the current max bytes");
                     }
 
-                    let mut new_shared_storage = AccountSharedStorage {
+                    let new_shared_storage = AccountSharedStorage {
                         max_bytes,
                         used_bytes: current_shared_storage.used_bytes,
                         pool_id,
@@ -153,7 +168,6 @@ impl Contract {
                     );
 
                     account.shared_storage = Some(new_shared_storage);
-                    self.internal_set_account(account);
                 } else {
                     // The account is already using shared storage from a different pool.
 
@@ -194,8 +208,7 @@ impl Contract {
                         shared_storage_pool,
                     );
 
-                    account.shared_storage = Some(new_shared_storage);
-                    self.internal_set_account(account);
+                    account.shared_storage = Some(new_shared_storage)
                 }
             } else {
                 // The account is not using shared storage.
@@ -208,8 +221,15 @@ impl Contract {
                     used_bytes: 0,
                     pool_id,
                 });
-                self.internal_set_account(account);
             }
+            // Custom account saving logic to measure the change in the shared storage.
+            let mut storage_tracker = StorageTracker::default();
+            storage_tracker.start();
+            self.internal_set_account(account);
+            storage_tracker.stop();
+            let mut account = self.internal_unwrap_account(account_id.as_str());
+            account.storage_tracker.consume(&mut storage_tracker);
+            self.internal_set_account(account);
         } else {
             // The account does not exist.
 
