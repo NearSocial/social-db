@@ -99,12 +99,7 @@ impl Contract {
             if path.is_empty() {
                 continue;
             }
-            self.recursive_keys(
-                &mut res,
-                &self.root_node,
-                &path[..],
-                &options,
-            )
+            self.recursive_keys(&mut res, &self.root_node, &path[..], &options)
         }
         json_map_recursive_cleanup(&mut res);
         Value::Object(res)
@@ -139,7 +134,7 @@ impl Contract {
         for (key, value) in data.as_object_mut().expect("Data is not a JSON object") {
             let mut account = self.internal_unwrap_account_or_create(&key, attached_balance);
             attached_balance = 0;
-            let write_approved = key == account_id.as_str() && env::attached_deposit() > 0;
+            let write_approved = key == account_id.as_str();
             let writable_node_ids = if write_approved {
                 HashSet::new()
             } else {
@@ -241,8 +236,12 @@ impl Contract {
                     if keys.len() == 1 {
                         let value = if options.values_only.unwrap_or(false) {
                             let inner_node = self.internal_unwrap_node(node_id);
-                            if let Some(node_value) = inner_node.children.get(&EMPTY_KEY.to_string()) {
-                                if options.return_deleted.unwrap_or(false) || !matches!(node_value, NodeValue::DeletedEntry(_)) {
+                            if let Some(node_value) =
+                                inner_node.children.get(&EMPTY_KEY.to_string())
+                            {
+                                if options.return_deleted.unwrap_or(false)
+                                    || !matches!(node_value, NodeValue::DeletedEntry(_))
+                                {
                                     match options.return_type.unwrap_or(KeysReturnType::True) {
                                         KeysReturnType::True => true.into(),
                                         KeysReturnType::BlockHeight => {
@@ -272,12 +271,7 @@ impl Contract {
                     } else {
                         let inner_node = self.internal_unwrap_node(node_id);
                         let inner_map = json_map_get_inner_object(res, key);
-                        self.recursive_keys(
-                            inner_map,
-                            &inner_node,
-                            &keys[1..],
-                            options,
-                        );
+                        self.recursive_keys(inner_map, &inner_node, &keys[1..], options);
                     }
                 }
                 NodeValue::Value(value_at_height) => {
