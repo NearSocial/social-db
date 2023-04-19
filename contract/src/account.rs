@@ -2,11 +2,11 @@ use crate::*;
 use near_contract_standards::storage_management::{
     StorageBalance, StorageBalanceBounds, StorageManagement,
 };
-use near_sdk::{require, StorageUsage};
+use near_sdk::require;
 use std::convert::TryFrom;
 
-/// 2000 bytes
-const MIN_STORAGE_BALANCE: Balance = 2000u128 * env::STORAGE_PRICE_PER_BYTE;
+pub const MIN_STORAGE_BYTES: StorageUsage = 2000;
+const MIN_STORAGE_BALANCE: Balance = MIN_STORAGE_BYTES as Balance * env::STORAGE_PRICE_PER_BYTE;
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize)]
 #[serde(crate = "near_sdk::serde")]
@@ -22,6 +22,8 @@ pub struct Account {
     #[serde(skip)]
     #[borsh_skip]
     pub storage_tracker: StorageTracker,
+    /// Optional storage balance donated from one of shared pools.
+    pub shared_storage: Option<AccountSharedStorage>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,12 +38,14 @@ pub struct PartialAccount {
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub enum VAccount {
+    V0(AccountV0),
     Current(Account),
 }
 
 impl From<VAccount> for Account {
     fn from(v: VAccount) -> Self {
         match v {
+            VAccount::V0(v) => v.into(),
             VAccount::Current(c) => c,
         }
     }
@@ -61,11 +65,18 @@ impl Account {
             permissions: UnorderedMap::new(StorageKey::Permissions { node_id }),
             node_id,
             storage_tracker: Default::default(),
+            shared_storage: None,
         }
     }
 
     fn assert_storage_covered(&self) {
-        let storage_balance_needed = Balance::from(self.used_bytes) * env::storage_byte_cost();
+        let shared_bytes_used = self
+            .shared_storage
+            .as_ref()
+            .map(|s| s.used_bytes)
+            .unwrap_or(0);
+        let storage_balance_needed =
+            Balance::from(self.used_bytes - shared_bytes_used) * env::storage_byte_cost();
         assert!(
             storage_balance_needed <= self.storage_balance,
             "Not enough storage balance"
@@ -121,7 +132,7 @@ impl Contract {
     ) {
         let min_balance = self.storage_balance_bounds().min.0;
         if storage_deposit < min_balance {
-            env::panic_str("The attached deposit is less than the mimimum storage balance");
+            env::panic_str("The attached deposit is less than the minimum storage balance");
         }
 
         let mut account = Account::new(self.create_node_id());
@@ -135,14 +146,47 @@ impl Contract {
             account.storage_balance = storage_deposit;
         }
 
+        self.internal_initial_set_account(account_id, account);
+    }
+
+    pub fn internal_create_account_from_shared_storage(
+        &mut self,
+        account_id: &str,
+        max_bytes: StorageUsage,
+        pool_id: AccountId,
+    ) {
+        let shared_storage = AccountSharedStorage {
+            pool_id,
+            used_bytes: 0,
+            max_bytes,
+        };
+        if shared_storage.max_bytes < MIN_STORAGE_BYTES {
+            env::panic_str("The max bytes is less than the minimum storage required");
+        }
+        let shared_storage_pool = self.internal_unwrap_shared_storage_pool(&shared_storage.pool_id);
+        if shared_storage.available_bytes(&shared_storage_pool) < MIN_STORAGE_BYTES {
+            env::panic_str(
+                "Not enough storage available in the shared storage pool to create an account",
+            );
+        }
+
+        let mut account = Account::new(self.create_node_id());
+        account.shared_storage = Some(shared_storage);
+
+        self.internal_initial_set_account(account_id, account);
+    }
+
+    pub fn internal_initial_set_account(&mut self, account_id: &str, mut account: Account) {
         account.storage_tracker.start();
         self.internal_set_node(Node::new(account.node_id, None));
         self.root_node.block_height = env::block_height();
         self.root_node
             .children
             .insert(&account_id.to_string(), &NodeValue::Node(account.node_id));
+        let mut temp_account = Account::new(account.node_id);
+        temp_account.shared_storage = account.shared_storage.clone();
         require!(
-            !self.internal_set_account(Account::new(account.node_id)),
+            !self.internal_set_account(temp_account),
             "Internal bug. Account already exists."
         );
         account.storage_tracker.stop();
@@ -150,18 +194,51 @@ impl Contract {
     }
 
     pub fn internal_set_account(&mut self, mut account: Account) -> bool {
-        if account.storage_tracker.bytes_added >= account.storage_tracker.bytes_released {
+        if account.storage_tracker.bytes_added > account.storage_tracker.bytes_released {
             let extra_bytes_used =
                 account.storage_tracker.bytes_added - account.storage_tracker.bytes_released;
             account.used_bytes += extra_bytes_used;
+            if let Some(shared_storage) = &mut account.shared_storage {
+                let mut shared_storage_pool =
+                    self.internal_unwrap_shared_storage_pool(&shared_storage.pool_id);
+                let pool_bytes = std::cmp::min(
+                    shared_storage.available_bytes(&shared_storage_pool),
+                    extra_bytes_used,
+                );
+                if pool_bytes > 0 {
+                    shared_storage_pool.used_bytes += pool_bytes;
+                    self.internal_set_shared_storage_pool(
+                        &shared_storage.pool_id,
+                        shared_storage_pool,
+                    );
+                    shared_storage.used_bytes += pool_bytes;
+                }
+            }
             account.assert_storage_covered();
-        } else {
+        } else if account.storage_tracker.bytes_added < account.storage_tracker.bytes_released {
             let bytes_released =
                 account.storage_tracker.bytes_released - account.storage_tracker.bytes_added;
             assert!(
                 account.used_bytes >= bytes_released,
                 "Internal storage accounting bug"
             );
+            if let Some(shared_storage) = &mut account.shared_storage {
+                let pool_bytes = std::cmp::min(shared_storage.used_bytes, bytes_released);
+                if pool_bytes > 0 {
+                    let mut shared_storage_pool =
+                        self.internal_unwrap_shared_storage_pool(&shared_storage.pool_id);
+                    assert!(
+                        shared_storage_pool.used_bytes >= pool_bytes,
+                        "Internal storage accounting bug"
+                    );
+                    shared_storage_pool.used_bytes -= pool_bytes;
+                    self.internal_set_shared_storage_pool(
+                        &shared_storage.pool_id,
+                        shared_storage_pool,
+                    );
+                }
+                shared_storage.used_bytes -= pool_bytes;
+            }
             account.used_bytes -= bytes_released;
         }
         account.storage_tracker.bytes_released = 0;
@@ -172,11 +249,18 @@ impl Contract {
 
     pub fn internal_storage_balance_of(&self, account_id: &AccountId) -> Option<StorageBalance> {
         self.internal_get_account(account_id.as_str())
-            .map(|storage| StorageBalance {
-                total: storage.storage_balance.into(),
+            .map(|account| StorageBalance {
+                total: account.storage_balance.into(),
                 available: U128(
-                    storage.storage_balance
-                        - Balance::from(storage.used_bytes) * env::storage_byte_cost(),
+                    account.storage_balance
+                        - Balance::from(
+                            account.used_bytes
+                                - account
+                                    .shared_storage
+                                    .as_ref()
+                                    .map(|s| s.used_bytes)
+                                    .unwrap_or(0),
+                        ) * env::storage_byte_cost(),
                 ),
             })
     }
@@ -279,6 +363,10 @@ impl Contract {
                 )
             })
             .collect()
+    }
+
+    pub fn get_account(&self, account_id: AccountId) -> Option<Account> {
+        self.internal_get_account(account_id.as_str())
     }
 
     /// Returns the number of accounts

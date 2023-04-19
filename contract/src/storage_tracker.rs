@@ -6,7 +6,7 @@ use near_sdk::StorageUsage;
 pub struct StorageTracker {
     pub bytes_added: StorageUsage,
     pub bytes_released: StorageUsage,
-    pub initial_storage_usage: Option<StorageUsage>,
+    initial_storage_usage: Option<StorageUsage>,
 }
 
 /// Safety guard for the storage tracker.
@@ -50,6 +50,15 @@ impl StorageTracker {
         assert!(
             other.initial_storage_usage.is_none(),
             "Can't merge storage tracker that is tracking storage"
+        );
+    }
+
+    pub fn clear(&mut self) {
+        self.bytes_added = 0;
+        self.bytes_released = 0;
+        assert!(
+            self.initial_storage_usage.is_none(),
+            "Can't clear storage tracker that is active"
         );
     }
 
