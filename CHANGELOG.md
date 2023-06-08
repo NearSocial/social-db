@@ -1,3 +1,7 @@
+# `0.10.1`
+
+- Refunds deposit on calling `set` if it hasn't been added to an account.
+
 # `0.10.0`
 
 - Remove `1` yoctoNEAR requirement when writing from the matching predecessor. It allows to write under your account with a simple limited access key without requesting the permission first.
