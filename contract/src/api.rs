@@ -125,6 +125,10 @@ impl Contract {
     ///     }
     ///   }
     /// })
+    ///
+    /// When `refund_unused_deposit` is set to `true`, the part of the deposit that covers unused
+    /// storage will be refunded to the caller.
+    ///
     /// ```
     #[payable]
     pub fn set(&mut self, mut data: Value, refund_unused_deposit: Option<bool>) {
