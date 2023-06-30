@@ -76,7 +76,9 @@ async fn test_set_method_and_refund() -> Result<()> {
                 },
             }
         },
-        "refund_unused_deposit": true
+        "options": {
+            "refund_unused_deposit": true
+        }
     });
 
     let prev_balance = user.view_account().await?.balance;
@@ -135,7 +137,9 @@ async fn test_set_method_and_refund_with_existing_deposit() -> Result<()> {
         "data": {
             &key: {}
         },
-        "refund_unused_deposit": true
+        "options": {
+            "refund_unused_deposit": true
+        }
     });
 
     let second_prev_balance = second_user.view_account().await?.balance;

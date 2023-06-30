@@ -38,6 +38,12 @@ pub struct KeysOptions {
     pub values_only: Option<bool>,
 }
 
+#[derive(Serialize, Deserialize, Default)]
+#[serde(crate = "near_sdk::serde")]
+pub struct SetOptions {
+    pub refund_unused_deposit: Option<bool>,
+}
+
 #[near_bindgen]
 impl Contract {
     /// ```js
@@ -131,8 +137,9 @@ impl Contract {
     ///
     /// ```
     #[payable]
-    pub fn set(&mut self, mut data: Value, refund_unused_deposit: Option<bool>) {
+    pub fn set(&mut self, mut data: Value, options: Option<SetOptions>) {
         self.assert_live();
+        let options = options.unwrap_or_default();
         let predecessor_account_id = env::predecessor_account_id();
         let mut attached_balance = env::attached_deposit();
         for (key, value) in data.as_object_mut().expect("Data is not a JSON object") {
@@ -149,7 +156,7 @@ impl Contract {
             account.storage_tracker.stop();
             self.internal_set_account(account);
 
-            if refund_unused_deposit == Some(true) && attached_balance > 0 {
+            if options.refund_unused_deposit.unwrap_or(false) && attached_balance > 0 {
                 // The key is the account id that received the deposit.
                 let account_id: AccountId = key.parse().expect("key is valid account id");
                 if let Some(balance) = self.internal_storage_balance_of(&account_id) {
