@@ -264,6 +264,30 @@ impl Contract {
                 ),
             })
     }
+
+    /// Withdraw storage deposit from the account id to the predecessor account.
+    /// Assumes that predecessor is authorized to withdraw from the account.
+    pub fn internal_storage_withdraw(
+        &mut self,
+        withdraw_from: &AccountId,
+        amount: Option<U128>,
+    ) -> StorageBalance {
+        if let Some(storage_balance) = self.internal_storage_balance_of(&withdraw_from) {
+            let amount = amount.unwrap_or(storage_balance.available).0;
+            if amount > storage_balance.available.0 {
+                env::panic_str("The amount is greater than the available storage balance");
+            }
+            if amount > 0 {
+                let mut account = self.internal_unwrap_account(withdraw_from.as_str());
+                account.storage_balance -= amount;
+                self.internal_set_account(account);
+                Promise::new(env::predecessor_account_id()).transfer(amount);
+            }
+            self.internal_storage_balance_of(&withdraw_from).unwrap()
+        } else {
+            env::panic_str(&format!("The account {} is not registered", &withdraw_from));
+        }
+    }
 }
 
 #[near_bindgen]
@@ -299,21 +323,7 @@ impl StorageManagement for Contract {
         self.assert_live();
         assert_one_yocto();
         let account_id = env::predecessor_account_id();
-        if let Some(storage_balance) = self.internal_storage_balance_of(&account_id) {
-            let amount = amount.unwrap_or(storage_balance.available).0;
-            if amount > storage_balance.available.0 {
-                env::panic_str("The amount is greater than the available storage balance");
-            }
-            if amount > 0 {
-                let mut account = self.internal_unwrap_account(account_id.as_str());
-                account.storage_balance -= amount;
-                self.internal_set_account(account);
-                Promise::new(account_id.clone()).transfer(amount);
-            }
-            self.internal_storage_balance_of(&account_id).unwrap()
-        } else {
-            env::panic_str(&format!("The account {} is not registered", &account_id));
-        }
+        self.internal_storage_withdraw(&account_id, amount)
     }
 
     #[allow(unused_variables)]

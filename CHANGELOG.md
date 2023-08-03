@@ -1,3 +1,7 @@
+# `0.11.0`
+
+- Add option to refund unused deposit for `set` method. [#11](https://github.com/NearSocial/social-db/pull/11)
+
 # `0.10.1`
 
 - Refunds deposit on calling `set` if it hasn't been added to an account.

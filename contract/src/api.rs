@@ -38,6 +38,12 @@ pub struct KeysOptions {
     pub values_only: Option<bool>,
 }
 
+#[derive(Serialize, Deserialize, Default)]
+#[serde(crate = "near_sdk::serde")]
+pub struct SetOptions {
+    pub refund_unused_deposit: Option<bool>,
+}
+
 #[near_bindgen]
 impl Contract {
     /// ```js
@@ -125,16 +131,20 @@ impl Contract {
     ///     }
     ///   }
     /// })
+    ///
+    /// When `refund_unused_deposit` is set to `true`, the part of the deposit that covers unused
+    /// storage will be refunded to the caller.
+    ///
     /// ```
     #[payable]
-    pub fn set(&mut self, mut data: Value) {
+    pub fn set(&mut self, mut data: Value, options: Option<SetOptions>) {
         self.assert_live();
-        let account_id = env::predecessor_account_id();
+        let options = options.unwrap_or_default();
+        let predecessor_account_id = env::predecessor_account_id();
         let mut attached_balance = env::attached_deposit();
         for (key, value) in data.as_object_mut().expect("Data is not a JSON object") {
             let mut account = self.internal_unwrap_account_or_create(key, attached_balance);
-            attached_balance = 0;
-            let write_approved = key == account_id.as_str();
+            let write_approved = key == predecessor_account_id.as_str();
             let writable_node_ids = if write_approved {
                 HashSet::new()
             } else {
@@ -145,6 +155,19 @@ impl Contract {
             self.recursive_set(node, value, write_approved, &writable_node_ids);
             account.storage_tracker.stop();
             self.internal_set_account(account);
+
+            if options.refund_unused_deposit.unwrap_or(false) && attached_balance > 0 {
+                // The key is the account id that received the deposit.
+                let account_id: AccountId = key.parse().expect("key is valid account id");
+                if let Some(balance) = self.internal_storage_balance_of(&account_id) {
+                    // We shouldn't refund more than what was deposited in this call.
+                    let refund = std::cmp::min(balance.available.0, attached_balance);
+                    self.internal_storage_withdraw(&account_id, Some(refund.into()));
+                }
+            }
+
+            // First key receives all the deposit.
+            attached_balance = 0;
         }
         if attached_balance > 0 {
             env::panic_str("The attached deposit could not be added to any account");
