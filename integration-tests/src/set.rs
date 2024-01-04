@@ -2,12 +2,12 @@ mod get_workspace_dir;
 
 use crate::get_workspace_dir::get_workspace_dir;
 use anyhow::Result;
-use near_units::parse_near;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
-use workspaces::network::Sandbox;
-use workspaces::{Account, Contract, Worker};
+use near_workspaces::network::Sandbox;
+use near_workspaces::{Account, Contract, Worker};
+use near_workspaces::types::NearToken;
 
 static CONTRACT_WASM_FILEPATH: &str = "res/social_db_local.wasm";
 
@@ -38,7 +38,7 @@ async fn test_set_method() -> Result<()> {
 
     user.call(contract.id(), "set")
         .args_json(args)
-        .deposit(parse_near!("0.1 N"))
+        .deposit(NearToken::from_yoctonear(100_000_000_000_000_000_000_000u128))
         .transact()
         .await?
         .into_result()?;
@@ -82,7 +82,7 @@ async fn test_set_method_and_refund() -> Result<()> {
     });
 
     let prev_balance = user.view_account().await?.balance;
-    let deposit = parse_near!("1 N");
+    let deposit = NearToken::from_near(1);
 
     user.call(contract.id(), "set")
         .args_json(args)
@@ -97,7 +97,7 @@ async fn test_set_method_and_refund() -> Result<()> {
     // less than prev balance.
     assert!(post_balance < prev_balance);
     // Check that the refund is received.
-    assert!(post_balance > prev_balance - deposit);
+    assert!(post_balance > prev_balance.checked_sub(deposit).unwrap());
 
     Ok(())
 }
@@ -120,7 +120,7 @@ async fn test_set_method_and_refund_with_existing_deposit() -> Result<()> {
         },
     });
 
-    let deposit = parse_near!("1 N");
+    let deposit = NearToken::from_near(1);
 
     let first_prev_balance = first_user.view_account().await?.balance;
     first_user
@@ -154,9 +154,9 @@ async fn test_set_method_and_refund_with_existing_deposit() -> Result<()> {
     let second_post_balance = second_user.view_account().await?.balance;
 
     // Make sure first user didn't receive refund.
-    assert!(first_post_balance < first_prev_balance - deposit);
+    assert!(first_post_balance < first_prev_balance.checked_sub(deposit).unwrap());
     // Make sure second user did receive refund.
-    assert!(second_post_balance > second_prev_balance - deposit);
+    assert!(second_post_balance > second_prev_balance.checked_sub(deposit).unwrap());
     // Make sure second user didn't receive more than what they put in.
     assert!(second_post_balance < second_prev_balance);
 
@@ -167,7 +167,7 @@ async fn init_contract_and_user() -> Result<(Worker<Sandbox>, Contract, Account)
     let workspace_dir = get_workspace_dir();
     let wasm_filepath = workspace_dir.join(CONTRACT_WASM_FILEPATH);
 
-    let worker = workspaces::sandbox().await?;
+    let worker = near_workspaces::sandbox().await?;
     let wasm = fs::read(wasm_filepath)?;
 
     let contract = worker.dev_deploy(&wasm).await?;
@@ -185,7 +185,7 @@ async fn init_contract_and_user() -> Result<(Worker<Sandbox>, Contract, Account)
     let account = worker.dev_create_account().await?;
     let user = account
         .create_subaccount("alice")
-        .initial_balance(parse_near!("30 N"))
+        .initial_balance(NearToken::from_near(30))
         .transact()
         .await?
         .into_result()?;

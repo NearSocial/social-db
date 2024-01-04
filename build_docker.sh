@@ -22,7 +22,7 @@ docker create \
 fi
 
 docker start $NAME
-docker exec -it $NAME /bin/bash -c "rustup toolchain install 1.69.0; rustup default 1.69.0; rustup target add wasm32-unknown-unknown; cargo build --package contract --target wasm32-unknown-unknown --release"
+docker exec -it $NAME /bin/bash -c "rustup toolchain install 1.75.0; rustup default 1.75.0; rustup target add wasm32-unknown-unknown; cargo build --package contract --target wasm32-unknown-unknown --release"
 
 mkdir -p res
 cp $DIR/target/wasm32-unknown-unknown/release/contract.wasm $DIR/res/social_db_release.wasm
