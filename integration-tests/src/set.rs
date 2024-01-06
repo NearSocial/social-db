@@ -11,6 +11,7 @@ use near_workspaces::types::NearToken;
 
 static CONTRACT_WASM_FILEPATH: &str = "res/social_db_local.wasm";
 
+//NEAR_ENABLE_SANDBOX_LOG = 1
 /// Tests the `set` method.
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -167,8 +168,14 @@ async fn init_contract_and_user() -> Result<(Worker<Sandbox>, Contract, Account)
     let workspace_dir = get_workspace_dir();
     let wasm_filepath = workspace_dir.join(CONTRACT_WASM_FILEPATH);
 
+    // Create a sandboxed environment.
+    // NOTE: Each call will create a new sandboxed environment
     let worker = near_workspaces::sandbox().await?;
+    // or for testnet:
+    //let worker = near_workspaces::testnet().await?;
     let wasm = fs::read(wasm_filepath)?;
+    // 测试前编译合约
+    let wasm = near_workspaces::compile_project(wasm_filepath).await?;
 
     let contract = worker.dev_deploy(&wasm).await?;
     contract.call("new").transact().await?.into_result()?;
