@@ -1,7 +1,7 @@
 [workspace.package]
 version = "0.11.0"
 authors = ["Eugene The Dream"]
-edition = "2018"
+edition = "2021"
 
 [profile.release]
 codegen-units = 1
@@ -13,6 +13,7 @@ panic = "abort"
 overflow-checks = true
 
 [workspace]
+resolver = "2"
 members = [
     "contract",
     "integration-tests"

@@ -2,7 +2,7 @@
 name = "integration-tests"
 version = "1.0.0"
 publish = false
-edition = "2018"
+edition = "2021"
 
 [dev-dependencies]
 anyhow = "1.0"
@@ -10,7 +10,7 @@ near-units = "0.2.0"
 # arbitrary_precision enabled for u128 types that workspaces requires for Balance types
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 tokio = { version = "1.18.1", features = ["full"] }
-workspaces = "0.7.0"
+near-workspaces = { version = "0.9.0", features = ["unstable"] }
 
 [[example]]
 name = "set_method"

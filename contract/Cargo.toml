@@ -2,12 +2,12 @@
 name = "contract"
 version = "0.11.0"
 authors = ["Eugene The Dream"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-near-sdk = "=4.0.0-pre.7"
-near-contract-standards = "=4.0.0-pre.7"
-near-sys = "=0.1"
+near-sdk = "4.1.1"
+near-contract-standards = "4.1.1"
+near-sys = "0.2.1"

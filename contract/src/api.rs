@@ -137,12 +137,12 @@ impl Contract {
     ///
     /// ```
     #[payable]
-    pub fn set(&mut self, mut data: Value, options: Option<SetOptions>) {
+    pub fn set(&mut self, data: Value, options: Option<SetOptions>) {
         self.assert_live();
         let options = options.unwrap_or_default();
         let predecessor_account_id = env::predecessor_account_id();
         let mut attached_balance = env::attached_deposit();
-        for (key, value) in data.as_object_mut().expect("Data is not a JSON object") {
+        for (key, value) in data.as_object().expect("Data is not a JSON object") {
             let mut account = self.internal_unwrap_account_or_create(key, attached_balance);
             let write_approved = key == predecessor_account_id.as_str();
             let writable_node_ids = if write_approved {
@@ -327,7 +327,7 @@ impl Contract {
     pub fn recursive_set(
         &mut self,
         mut node: Node,
-        value: &mut Value,
+        value: &Value,
         write_approved: bool,
         writable_node_ids: &HashSet<NodeId>,
     ) {
@@ -335,7 +335,7 @@ impl Contract {
         if value.is_string() || value.is_null() {
             require!(write_approved, ERR_PERMISSION_DENIED);
             node.set(&EMPTY_KEY.to_string(), value);
-        } else if let Some(obj) = value.as_object_mut() {
+        } else if let Some(obj) = value.as_object() {
             for (key, value) in obj {
                 assert_key_valid(key.as_str());
                 let node_value = node.children.get(key);
