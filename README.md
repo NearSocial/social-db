@@ -6,13 +6,13 @@
 
 Deployed at `v1.social08.testnet`
 
-https://explorer.testnet.near.org/accounts/v1.social08.testnet
+<https://explorer.testnet.near.org/accounts/v1.social08.testnet>
 
 ### Mainnet account ID
 
 Deployed at `social.near`
 
-https://explorer.near.org/accounts/social.near
+<https://nearblocks.io/address/social.near#contract>
 
 ### About empty keys
 
@@ -65,6 +65,7 @@ pub fn set(&mut self, data: Value);
 ```
 
 Arguments:
+
 - `data` is an object to store. The leaf values should be strings or null values. String values will be added, while null values will be deleted.
 
 Examples:
@@ -103,6 +104,7 @@ Returns the data for a list of given key patterns.
 It takes one or more path patterns as arguments, and returns the matching data.
 The path pattern is a string that can contain wildcards.
 For example:
+
 - `alice.near/profile/**` will match the entire profile data of account `alice.near`.
 - `alice.near/profile/*` will match all the fields of the profile, but not the nested objects.
 - `alice.near/profile/name` will match only the name field of the profile.
@@ -119,10 +121,12 @@ pub fn get(self, keys: Vec<String>, options: Option<GetOptions>) -> Value;
 ```
 
 Arguments:
+
 - `keys` - an array of key patterns to return.
 - `options` - optional argument to specify options.
 
 Options:
+
 - `with_block_height` - if true, for every value and a node will add the block height of the data with the key `:block`.
 - `with_node_id` - if true, for every node will add the node index with the key `:node`.
 - `return_deleted` - if true, will include deleted keys with the value `null`.
@@ -153,6 +157,7 @@ The `keys` method allows to get the list of keys that match the path pattern.
 It's useful for querying the data without reading values.
 It also has an additional `options` field that can be used to specify the return type and whether to return deleted keys.
 For example:
+
 - `alice.near/profile/*` will return the list of all the fields of the profile, but not the nested objects.
 - `*/profile/image/nft` will return the list of all the accounts that have an NFT image in their profile.
 - `alice.near/widget/*` with `return_deleted` option will return the list of all the widget names of the account, including the deleted ones.
@@ -176,10 +181,12 @@ pub fn keys(self, keys: Vec<String>, options: Option<KeysOptions>) -> Value;
 ```
 
 Arguments:
+
 - `keys` - an array of key patterns to return.
 - `options` - optional argument to specify options.
 
 Options:
+
 - `return_type` - if `BlockHeight`, will return the block height of the key instead of `true`, if `NodeId`, will return the node index of the key instead of `true`.
 - `return_deleted` - if true, will include deleted keys.
 - `values_only` - if `true`, only matches keys which value is not a node. It's needed to filter out deleted entries. Since a node can't be deleted right now.
@@ -200,7 +207,7 @@ keys({keys: ["alex.near/widget/*"], options: {return_type: "BlockHeight", values
 
 ### Permissions
 
-See https://explorer.testnet.near.org/transactions/3c7h9da1z5Px4JumNDsRaJtCDQaZHG46dsc2SnAj5LHx\
+See <https://explorer.testnet.near.org/transactions/3c7h9da1z5Px4JumNDsRaJtCDQaZHG46dsc2SnAj5LHx\>
 
 ```rust
 #[payable]
@@ -233,6 +240,3 @@ near view $CONTRACT_ID get '{"keys":["**"]}'
 # Full account's data
 near view $CONTRACT_ID get '{"keys":["'$ACCOUNT_ID'/**"]}'
 ```
-
-
-
