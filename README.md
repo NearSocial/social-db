@@ -200,7 +200,7 @@ keys({keys: ["alex.near/widget/*"], options: {return_type: "BlockHeight", values
 
 ### Permissions
 
-See https://explorer.testnet.near.org/transactions/3c7h9da1z5Px4JumNDsRaJtCDQaZHG46dsc2SnAj5LHx\
+See https://testnet.nearblocks.io/txns/3c7h9da1z5Px4JumNDsRaJtCDQaZHG46dsc2SnAj5LHx#execution
 
 ```rust
 #[payable]
