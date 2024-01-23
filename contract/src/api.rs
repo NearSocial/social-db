@@ -2,6 +2,7 @@ use crate::*;
 use near_sdk::require;
 use near_sdk::serde_json::map::Entry;
 use near_sdk::serde_json::{Map, Value};
+use near_sdk::json_types::U64;
 use std::collections::HashSet;
 
 pub const MAX_KEY_LENGTH: usize = 256;
@@ -36,6 +37,12 @@ pub struct KeysOptions {
     pub return_deleted: Option<bool>,
     /// Whether to match nodes.
     pub values_only: Option<bool>,
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize)]
+#[serde(crate = "near_sdk::serde")]
+pub struct SetReturnType {
+    pub block_height: near_sdk::json_types::U64,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -137,7 +144,7 @@ impl Contract {
     ///
     /// ```
     #[payable]
-    pub fn set(&mut self, mut data: Value, options: Option<SetOptions>) {
+    pub fn set(&mut self, mut data: Value, options: Option<SetOptions>) -> SetReturnType {
         self.assert_live();
         let options = options.unwrap_or_default();
         let predecessor_account_id = env::predecessor_account_id();
@@ -172,6 +179,7 @@ impl Contract {
         if attached_balance > 0 {
             env::panic_str("The attached deposit could not be added to any account");
         }
+        SetReturnType { block_height: U64(near_sdk::env::block_height()) }
     }
 }
 

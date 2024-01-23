@@ -3,7 +3,7 @@ mod get_workspace_dir;
 use crate::get_workspace_dir::get_workspace_dir;
 use anyhow::Result;
 use near_units::parse_near;
-use serde_json::json;
+use serde_json::{from_value, json, Value};
 use std::collections::HashMap;
 use std::fs;
 use workspaces::network::Sandbox;
@@ -36,12 +36,21 @@ async fn test_set_method() -> Result<()> {
         }
     });
 
-    user.call(contract.id(), "set")
+    let set_result = user
+        .call(contract.id(), "set")
         .args_json(args)
         .deposit(parse_near!("0.1 N"))
         .transact()
         .await?
-        .into_result()?;
+        .json::<Value>()?;
+
+    assert!(
+        set_result["block_height"]
+            .as_str()
+            .unwrap()
+            .parse::<u64>()?
+            > 0
+    );
 
     let name_key = format!("{user_id}/profile/name");
     let result = user
