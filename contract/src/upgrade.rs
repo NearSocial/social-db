@@ -64,6 +64,10 @@ impl Contract {
                 .insert(&account.node_id, &current_account.into());
         }
     }
+
+    pub fn get_version(&self) -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
 }
 
 fn populate_node(node: &mut Node, partial_node: PartialNode) {
