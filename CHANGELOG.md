@@ -1,3 +1,8 @@
+# `0.12.0`
+
+- Add `get_version` method to return the version of the contract.
+- `set` method to return `SetReturnType` object. It contains `block_height` which is the block height when the data was set in decimal string format.
+
 # `0.11.0`
 
 - Add option to refund unused deposit for `set` method. [#11](https://github.com/NearSocial/social-db/pull/11)
