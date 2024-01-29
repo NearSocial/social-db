@@ -115,6 +115,33 @@ impl Contract {
         account.permissions.to_vec()
     }
 
+    /// Returns a list of account IDs and permissions for which the given account ID was granted
+    /// permissions.
+    pub fn debug_write_permissions(&self, account_id: AccountId) -> Vec<(AccountId, Permission)> {
+        let permission_key = PermissionKey::AccountId(account_id);
+        self.root_node
+            .children
+            .keys()
+            .filter_map(|key| match key.parse::<AccountId>() {
+                Ok(id) => Some(id),
+                Err(_) => None,
+            })
+            .filter_map(|id| match self.root_node.children.get(&id.to_string()) {
+                Some(node) => match node {
+                    NodeValue::Node(node_id) => {
+                        let account: Account = self.accounts.get(&node_id).unwrap().into();
+                        match account.permissions.get(&permission_key) {
+                            Some(permission) => Some((id, permission)),
+                            None => None,
+                        }
+                    }
+                    _ => env::panic_str("Unexpected account key. The value is not a node."),
+                },
+                None => None,
+            })
+            .collect()
+    }
+
     /// Returns true if the permission is granted for a given account ID or a given public_key to
     /// any prefix of the key.
     pub fn is_write_permission_granted(
