@@ -1,9 +1,15 @@
 use crate::*;
-use near_sdk::require;
+use near_sdk::ext_contract;
+use near_sdk::json_types::U64;
 use near_sdk::serde_json::map::Entry;
 use near_sdk::serde_json::{Map, Value};
-use near_sdk::json_types::U64;
+use near_sdk::{require, Gas};
 use std::collections::HashSet;
+
+#[ext_contract(callback_contract)]
+trait CallbackContract {
+    fn on_social_set(&self) -> Promise;
+}
 
 pub const MAX_KEY_LENGTH: usize = 256;
 pub const SEPARATOR: char = '/';
@@ -11,6 +17,7 @@ pub const STAR: &str = "*";
 pub const RECURSIVE_STAR: &str = "**";
 pub const KEY_BLOCK_HEIGHT: &str = ":block";
 pub const KEY_NODE_ID: &str = ":node";
+pub const TGAS: u64 = 1_000_000_000_000;
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(crate = "near_sdk::serde")]
@@ -49,6 +56,7 @@ pub struct SetReturnType {
 #[serde(crate = "near_sdk::serde")]
 pub struct SetOptions {
     pub refund_unused_deposit: Option<bool>,
+    pub callback_receiver_id: Option<AccountId>,
 }
 
 #[near_bindgen]
@@ -176,10 +184,22 @@ impl Contract {
             // First key receives all the deposit.
             attached_balance = 0;
         }
+
         if attached_balance > 0 {
             env::panic_str("The attached deposit could not be added to any account");
         }
-        SetReturnType { block_height: U64(near_sdk::env::block_height()) }
+
+        if options.callback_receiver_id.is_some() {
+            let callback_receiver_id = options.callback_receiver_id.unwrap();
+
+            let promise = callback_contract::ext(callback_receiver_id.clone())
+                .with_static_gas(Gas(5 * TGAS))
+                .on_social_set(U64(near_sdk::env::block_height()));
+        }
+
+        SetReturnType {
+            block_height: U64(near_sdk::env::block_height()),
+        }
     }
 }
 
