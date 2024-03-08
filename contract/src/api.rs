@@ -1,14 +1,14 @@
 use crate::*;
-use near_sdk::ext_contract;
 use near_sdk::json_types::U64;
 use near_sdk::serde_json::map::Entry;
 use near_sdk::serde_json::{Map, Value};
+use near_sdk::{ext_contract, BlockHeight};
 use near_sdk::{require, Gas};
 use std::collections::HashSet;
 
 #[ext_contract(callback_contract)]
 trait CallbackContract {
-    fn on_social_set(&self) -> Promise;
+    fn on_social_set(&self, block_height: BlockHeight) -> Promise;
 }
 
 pub const MAX_KEY_LENGTH: usize = 256;
@@ -192,9 +192,12 @@ impl Contract {
         if options.callback_receiver_id.is_some() {
             let callback_receiver_id = options.callback_receiver_id.unwrap();
 
-            let promise = callback_contract::ext(callback_receiver_id.clone())
-                .with_static_gas(Gas(5 * TGAS))
-                .on_social_set(U64(near_sdk::env::block_height()));
+            callback_contract::on_social_set(
+                near_sdk::env::block_height(),
+                callback_receiver_id.clone(),
+                0,
+                Gas(5 * TGAS),
+            );
         }
 
         SetReturnType {
