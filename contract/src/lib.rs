@@ -1,21 +1,21 @@
 mod account;
 mod api;
+mod legacy;
 mod node;
 mod permission;
+mod shared_storage;
 mod storage_tracker;
 mod upgrade;
 mod utils;
-mod legacy;
-mod shared_storage;
 
 pub use crate::account::*;
 pub use crate::api::*;
+use crate::legacy::*;
 pub use crate::node::*;
 pub use crate::permission::*;
 pub use crate::shared_storage::*;
 use crate::storage_tracker::*;
 use crate::utils::*;
-use crate::legacy::*;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{LookupMap, UnorderedMap};
